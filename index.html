@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorldBox — God Simulator</title>
+  <meta name="description"
+    content="A WorldBox-style God Simulator — paint terrain, spawn civilizations, watch the world evolve from above." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body>
+
+  <!-- ─── Toolbar ──────────────────────────────────────── -->
+  <div id="toolbar">
+    <span class="logo">🌍 WorldBox</span>
+
+    <div class="tool-group">
+      <span class="group-label">Terrain</span>
+      <button class="tool-btn active" data-tool="grass">
+        🟩 Grass <span class="key-hint">1</span>
+      </button>
+      <button class="tool-btn" data-tool="forest">
+        🌲 Forest <span class="key-hint">2</span>
+      </button>
+      <button class="tool-btn" data-tool="sand">
+        🏖️ Sand <span class="key-hint">3</span>
+      </button>
+      <button class="tool-btn" data-tool="dirt">
+        🟫 Dirt <span class="key-hint">4</span>
+      </button>
+      <button class="tool-btn" data-tool="water">
+        🌊 Water <span class="key-hint">5</span>
+      </button>
+      <button class="tool-btn" data-tool="stone">
+        🪨 Stone <span class="key-hint">6</span>
+      </button>
+    </div>
+
+    <span class="separator"></span>
+
+    <div class="tool-group">
+      <span class="group-label">Powers</span>
+      <button class="tool-btn" data-tool="fire">
+        🔥 Fire <span class="key-hint">7</span>
+      </button>
+      <button class="tool-btn" data-tool="erase">
+        🧹 Erase <span class="key-hint">8</span>
+      </button>
+    </div>
+
+    <span class="separator"></span>
+
+    <div class="tool-group">
+      <span class="group-label">Spawn</span>
+      <button class="tool-btn" data-tool="spawn_human">
+        👤 Human <span class="key-hint">9</span>
+      </button>
+      <button class="tool-btn" data-tool="spawn_sheep">
+        🐑 Sheep <span class="key-hint">0</span>
+      </button>
+    </div>
+
+    <span id="current-tool-wrapper">
+      Tool: <span id="current-tool">grass</span>
+    </span>
+  </div>
+
+  <!-- ─── Canvas ───────────────────────────────────────── -->
+  <canvas id="game-canvas"></canvas>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+
+</html>
