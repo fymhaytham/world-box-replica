@@ -36,6 +36,19 @@ export class EntityManager {
         this.personalities.delete(id);
     }
 
+    clear() {
+        this.positions.clear();
+        this.velocities.clear();
+        this.healths.clear();
+        this.hungers.clear();
+        this.renders.clear();
+        this.wanders.clear();
+        this.factions.clear();
+        this.grazers.clear();
+        this.personalities.clear();
+        this._nextId = 1;
+    }
+
     // ─── Prefab Spawners ─────────────────────────────────
 
     spawnHuman(x, y) {

@@ -46,6 +46,20 @@ export class KingdomManager {
         this._attackedBy = new Map();
     }
 
+    clear() {
+        this.kingdoms.clear();
+        this.membership.clear();
+        this.wars.clear();
+        this._usedNames.clear();
+        this._lastAttackerKingdom.clear();
+        this._attackedBy.clear();
+        this._nextKingdomId = 1;
+        this._formTimer = 0;
+        this._warTimer = 0;
+        this._combatTimer = 0;
+        this._breedTimer = 0;
+    }
+
     /**
      * Create a new kingdom.
      */

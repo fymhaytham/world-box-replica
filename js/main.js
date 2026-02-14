@@ -5,8 +5,8 @@ import { stepAutomata, stepGrassGrowth } from './world/automata.js';
 import { Camera } from './camera.js?v=5';
 import { Renderer } from './renderer.js?v=4';
 import { InputManager } from './input.js';
-import { EntityManager } from './ecs/EntityManager.js';
-import { KingdomManager } from './ecs/KingdomManager.js?v=3';
+import { EntityManager } from './ecs/EntityManager.js?v=reset';
+import { KingdomManager } from './ecs/KingdomManager.js?v=reset';
 import { wanderSystem, movementSystem, hungerSystem, grazingSystem } from './ecs/systems.js?v=2';
 
 // ─── Bootstrap ──────────────────────────────────────────
@@ -29,6 +29,15 @@ document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
 // Generate Island button
 document.getElementById('btn-generate-island').addEventListener('click', () => {
     world.generateIsland();
+});
+
+// Reset World button
+document.getElementById('btn-reset-world').addEventListener('click', () => {
+    if (confirm("Are you sure you want to reset the world? This will delete everything.")) {
+        world.fillWater();
+        entities.clear();
+        kingdoms.clear();
+    }
 });
 
 // ─── Game Loop ──────────────────────────────────────────
