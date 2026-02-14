@@ -38,6 +38,12 @@ document.getElementById('btn-reset-world').addEventListener('click', () => {
     kingdoms.clear();
 });
 
+// Return to Menu
+document.getElementById('btn-return-menu').addEventListener('click', () => {
+    isGameRunning = false;
+    document.body.classList.remove('game-active');
+});
+
 // ─── Game Loop ──────────────────────────────────────────
 let lastTime = performance.now();
 let accumulator = 0;
