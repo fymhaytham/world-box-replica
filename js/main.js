@@ -33,11 +33,9 @@ document.getElementById('btn-generate-island').addEventListener('click', () => {
 
 // Reset World button
 document.getElementById('btn-reset-world').addEventListener('click', () => {
-    if (confirm("Are you sure you want to reset the world? This will delete everything.")) {
-        world.fillWater();
-        entities.clear();
-        kingdoms.clear();
-    }
+    world.fillWater();
+    entities.clear();
+    kingdoms.clear();
 });
 
 // ─── Game Loop ──────────────────────────────────────────
