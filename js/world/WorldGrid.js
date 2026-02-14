@@ -17,24 +17,29 @@ export class WorldGrid {
             this.noise[i] = Math.random() * 255 | 0;
         }
 
-        // Generate a default world
-        this._generateWorld();
+        // Start with empty ocean — user creates their own world
+        this.fillWater();
+    }
+
+    /** Reset the entire world to deep water */
+    fillWater() {
+        this.data.fill(TILE.WATER_DEEP);
+        this._markAllChunksDirty();
     }
 
     // ─── Procedural generation ────────────────────────────
 
-    _generateWorld() {
+    /** Generate the default procedural island */
+    generateIsland() {
         const cx = this.w / 2;
         const cy = this.h / 2;
 
         for (let y = 0; y < this.h; y++) {
             for (let x = 0; x < this.w; x++) {
-                // Simple concentric-island generator
                 const dx = (x - cx) / cx;
                 const dy = (y - cy) / cy;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                // Noise to break up circles
                 const n = this._simplex(x * 0.05, y * 0.05);
                 const elevation = 1.0 - dist * 1.1 + n * 0.3;
 
@@ -50,8 +55,10 @@ export class WorldGrid {
                 this.data[y * this.w + x] = tile;
             }
         }
+        this._markAllChunksDirty();
+    }
 
-        // Mark all chunks dirty
+    _markAllChunksDirty() {
         if (this.chunkManager) {
             for (let cy = 0; cy < this.h / CHUNK_SIZE; cy++) {
                 for (let cx = 0; cx < this.w / CHUNK_SIZE; cx++) {

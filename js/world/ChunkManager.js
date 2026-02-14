@@ -95,10 +95,16 @@ export class ChunkManager {
         const canvasW = mainCtx.canvas.width;
         const canvasH = mainCtx.canvas.height;
 
-        const startCX = Math.max(0, Math.floor(camera.x / (CHUNK_SIZE * TILE_SIZE)));
-        const startCY = Math.max(0, Math.floor(camera.y / (CHUNK_SIZE * TILE_SIZE)));
-        const endCX = Math.min(this.chunksX - 1, Math.floor((camera.x + canvasW / camera.zoom) / (CHUNK_SIZE * TILE_SIZE)));
-        const endCY = Math.min(this.chunksY - 1, Math.floor((camera.y + canvasH / camera.zoom) / (CHUNK_SIZE * TILE_SIZE)));
+        // Visible world-space rect (camera.x/y can be negative when centered)
+        const viewX = camera.x;
+        const viewY = camera.y;
+        const viewW = canvasW / camera.zoom;
+        const viewH = canvasH / camera.zoom;
+
+        const startCX = Math.max(0, Math.floor(viewX / (CHUNK_SIZE * TILE_SIZE)));
+        const startCY = Math.max(0, Math.floor(viewY / (CHUNK_SIZE * TILE_SIZE)));
+        const endCX = Math.min(this.chunksX - 1, Math.floor((viewX + viewW) / (CHUNK_SIZE * TILE_SIZE)));
+        const endCY = Math.min(this.chunksY - 1, Math.floor((viewY + viewH) / (CHUNK_SIZE * TILE_SIZE)));
 
         for (let cy = startCY; cy <= endCY; cy++) {
             for (let cx = startCX; cx <= endCX; cx++) {
@@ -109,8 +115,9 @@ export class ChunkManager {
                 const buf = this.buffers[this.idx(cx, cy)];
                 if (!buf) continue;
 
-                const sx = cx * CHUNK_SIZE * TILE_SIZE - camera.x;
-                const sy = cy * CHUNK_SIZE * TILE_SIZE - camera.y;
+                // Draw at world position — camera transform is already applied
+                const sx = cx * CHUNK_SIZE * TILE_SIZE;
+                const sy = cy * CHUNK_SIZE * TILE_SIZE;
 
                 mainCtx.drawImage(buf, sx, sy);
             }

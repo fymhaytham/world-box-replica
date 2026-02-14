@@ -5,8 +5,12 @@ import { TILE } from '../constants.js';
  */
 
 // ─── Wander System ──────────────────────────────────────
-export function wanderSystem(positions, velocities, wanders) {
+// warTargeting: optional Set<entityId> — entities currently chasing war targets
+export function wanderSystem(positions, velocities, wanders, warTargeting) {
     for (const [id, w] of wanders) {
+        // Skip units that are actively targeting an enemy
+        if (warTargeting && warTargeting.has(id)) continue;
+
         w.timer--;
         if (w.timer <= 0) {
             w.timer = w.interval + Math.floor(Math.random() * 20);

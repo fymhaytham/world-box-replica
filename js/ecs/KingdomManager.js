@@ -41,6 +41,9 @@ export class KingdomManager {
 
         /** @type {Map<number, number>} entity id → attacker kingdom id (for conquest) */
         this._lastAttackerKingdom = new Map();
+
+        /** @type {Map<number, Set<number>>} kingdom id → set of kingdom ids that attacked it */
+        this._attackedBy = new Map();
     }
 
     /**
@@ -180,12 +183,14 @@ export class KingdomManager {
 
     /**
      * Main tick — called every logic tick from main.js
+     * Returns: Set<entityId> of units currently targeting enemies
      */
     update(entities, world, tickCount) {
         this._formationSystem(entities, tickCount);
-        this._warDeclarationSystem(tickCount);
+        this._warDeclarationSystem(entities, tickCount);
         this._combatSystem(entities, tickCount);
         this._breedingSystem(entities, world, tickCount);
+        return this._warTargeting;
     }
 
     // ─── Kingdom Formation ────────────────────────────────
@@ -250,7 +255,7 @@ export class KingdomManager {
     // ─── War Declaration ──────────────────────────────────
     // Periodically, kingdoms may declare war on each other
 
-    _warDeclarationSystem(tickCount) {
+    _warDeclarationSystem(entities, tickCount) {
         this._warTimer++;
         if (this._warTimer < 100) return; // every ~5 seconds
         this._warTimer = 0;
@@ -258,20 +263,79 @@ export class KingdomManager {
         const kingdomIds = [...this.kingdoms.keys()];
         if (kingdomIds.length < 2) return;
 
-        // Small random chance of war between any two kingdoms
+        // War chance per king personality:
+        // 1=Warmonger 25%, 2=Irritable 15%, 3=Neutral 8%, 4=Peaceful 2%, 5=Pacifist 0%
+        const WAR_CHANCE = { 1: 0.25, 2: 0.15, 3: 0.08, 4: 0.02, 5: 0 };
+        // Peace chance: aggressive kings less likely to make peace
+        const PEACE_CHANCE = { 1: 0.01, 2: 0.02, 3: 0.03, 4: 0.06, 5: 0.10 };
+
         for (let i = 0; i < kingdomIds.length; i++) {
+            const kidA = kingdomIds[i];
+            const kA = this.kingdoms.get(kidA);
+            if (!kA) continue;
+
+            // Get king personality
+            const persA = entities.personalities.get(kA.leaderId);
+            const pValA = persA ? persA.value : 3;
+
             for (let j = i + 1; j < kingdomIds.length; j++) {
-                if (this.areAtWar(kingdomIds[i], kingdomIds[j])) continue;
-                if (Math.random() < 0.08) { // 8% chance per pair per check
-                    this.declareWar(kingdomIds[i], kingdomIds[j]);
+                const kidB = kingdomIds[j];
+                if (this.areAtWar(kidA, kidB)) continue;
+
+                const kB = this.kingdoms.get(kidB);
+                if (!kB) continue;
+                const persB = entities.personalities.get(kB.leaderId);
+                const pValB = persB ? persB.value : 3;
+
+                // Each king rolls independently — war starts if EITHER initiates
+                const chanceA = WAR_CHANCE[pValA] || 0;
+                const chanceB = WAR_CHANCE[pValB] || 0;
+
+                // Pacifists (5) only retaliate — check if they were attacked
+                let retaliateA = false, retaliateB = false;
+                if (pValA === 5) {
+                    const attackers = this._attackedBy.get(kidA);
+                    retaliateA = attackers && attackers.has(kidB);
+                }
+                if (pValB === 5) {
+                    const attackers = this._attackedBy.get(kidB);
+                    retaliateB = attackers && attackers.has(kidA);
+                }
+
+                if (Math.random() < chanceA || Math.random() < chanceB || retaliateA || retaliateB) {
+                    this.declareWar(kidA, kidB);
+                    // Track who attacked whom for pacifist retaliation
+                    if (chanceA > 0 || retaliateA) {
+                        if (!this._attackedBy.has(kidB)) this._attackedBy.set(kidB, new Set());
+                        this._attackedBy.get(kidB).add(kidA);
+                    }
+                    if (chanceB > 0 || retaliateB) {
+                        if (!this._attackedBy.has(kidA)) this._attackedBy.set(kidA, new Set());
+                        this._attackedBy.get(kidA).add(kidB);
+                    }
                 }
             }
         }
 
-        // Small chance of peace
+        // Peace: roll based on the more peaceful king
         for (const warKey of [...this.wars]) {
-            if (Math.random() < 0.03) {
+            const [aIdStr, bIdStr] = warKey.split('-');
+            const kA = this.kingdoms.get(Number(aIdStr));
+            const kB = this.kingdoms.get(Number(bIdStr));
+            if (!kA || !kB) { this.wars.delete(warKey); continue; }
+
+            const pA = entities.personalities.get(kA.leaderId);
+            const pB = entities.personalities.get(kB.leaderId);
+            const pValA = pA ? pA.value : 3;
+            const pValB = pB ? pB.value : 3;
+
+            // Use the MORE peaceful king's peace chance
+            const peaceChance = Math.max(PEACE_CHANCE[pValA] || 0.03, PEACE_CHANCE[pValB] || 0.03);
+            if (Math.random() < peaceChance) {
                 this.wars.delete(warKey);
+                // Clear retaliation records
+                this._attackedBy.get(Number(aIdStr))?.delete(Number(bIdStr));
+                this._attackedBy.get(Number(bIdStr))?.delete(Number(aIdStr));
             }
         }
     }
@@ -281,12 +345,11 @@ export class KingdomManager {
 
     _combatSystem(entities, tickCount) {
         this._combatTimer++;
-        if (this._combatTimer < 5) return; // every ~0.25 seconds
-        this._combatTimer = 0;
 
-        const ATTACK_RANGE = 3; // tiles
+        const ATTACK_RANGE = 3;  // tiles
         const DAMAGE = 8;
         const CHASE_SPEED = 0.35;
+        const TARGET_RANGE = 50; // tiles — seek enemies from far away
 
         // Build spatial list of kingdom units
         const units = [];
@@ -299,48 +362,51 @@ export class KingdomManager {
             units.push({ id, kid, pos });
         }
 
-        // Check for combat between warring kingdoms
+        // Build war-targeting set: for each unit at war, find closest enemy
+        const targeting = new Set();
         for (let i = 0; i < units.length; i++) {
             const a = units[i];
-            for (let j = i + 1; j < units.length; j++) {
+            let closestEnemy = null;
+            let closestDist = TARGET_RANGE;
+
+            for (let j = 0; j < units.length; j++) {
+                if (i === j) continue;
                 const b = units[j];
                 if (!this.areAtWar(a.kid, b.kid)) continue;
 
                 const dist = Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestEnemy = b;
+                }
+            }
 
-                if (dist < ATTACK_RANGE) {
-                    // Both deal damage + track attacker for conquest
-                    const hpA = entities.healths.get(a.id);
-                    const hpB = entities.healths.get(b.id);
-                    if (hpA) {
-                        hpA.current -= DAMAGE * (0.5 + Math.random() * 0.5);
-                        this._lastAttackerKingdom.set(a.id, b.kid);
-                    }
-                    if (hpB) {
-                        hpB.current -= DAMAGE * (0.5 + Math.random() * 0.5);
-                        this._lastAttackerKingdom.set(b.id, a.kid);
-                    }
-                } else if (dist < 15) {
-                    // Chase enemy — override wander velocity
-                    const velA = entities.velocities.get(a.id);
-                    const velB = entities.velocities.get(b.id);
-                    if (velA) {
-                        const dx = b.pos.x - a.pos.x;
-                        const dy = b.pos.y - a.pos.y;
-                        const len = Math.hypot(dx, dy) || 1;
-                        velA.vx = (dx / len) * CHASE_SPEED;
-                        velA.vy = (dy / len) * CHASE_SPEED;
-                    }
-                    if (velB) {
-                        const dx = a.pos.x - b.pos.x;
-                        const dy = a.pos.y - b.pos.y;
-                        const len = Math.hypot(dx, dy) || 1;
-                        velB.vx = (dx / len) * CHASE_SPEED;
-                        velB.vy = (dy / len) * CHASE_SPEED;
+            if (closestEnemy) {
+                targeting.add(a.id);
+
+                // Move towards closest enemy
+                const vel = entities.velocities.get(a.id);
+                if (vel) {
+                    const dx = closestEnemy.pos.x - a.pos.x;
+                    const dy = closestEnemy.pos.y - a.pos.y;
+                    const len = Math.hypot(dx, dy) || 1;
+                    vel.vx = (dx / len) * CHASE_SPEED;
+                    vel.vy = (dy / len) * CHASE_SPEED;
+                }
+
+                // Deal damage if in attack range (only on combat ticks)
+                if (this._combatTimer >= 5 && closestDist < ATTACK_RANGE) {
+                    const hpEnemy = entities.healths.get(closestEnemy.id);
+                    if (hpEnemy) {
+                        hpEnemy.current -= DAMAGE * (0.5 + Math.random() * 0.5);
+                        this._lastAttackerKingdom.set(closestEnemy.id, a.kid);
                     }
                 }
             }
         }
+
+        if (this._combatTimer >= 5) this._combatTimer = 0;
+        this._warTargeting = targeting;
     }
 
     // ─── Breeding System ──────────────────────────────────

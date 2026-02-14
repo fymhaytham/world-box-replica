@@ -17,6 +17,7 @@ export class EntityManager {
         this.wanders = new Map();
         this.factions = new Map();
         this.grazers = new Map();
+        this.personalities = new Map();
     }
 
     _create() {
@@ -32,6 +33,7 @@ export class EntityManager {
         this.wanders.delete(id);
         this.factions.delete(id);
         this.grazers.delete(id);
+        this.personalities.delete(id);
     }
 
     // ─── Prefab Spawners ─────────────────────────────────
@@ -45,6 +47,7 @@ export class EntityManager {
         this.renders.set(id, C.Render('#FFD700', 0.8));
         this.wanders.set(id, C.Wander(40));
         this.factions.set(id, C.Faction('human'));
+        this.personalities.set(id, C.Personality());
         return id;
     }
 

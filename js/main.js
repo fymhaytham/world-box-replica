@@ -1,29 +1,34 @@
 import { LOGIC_STEP } from './constants.js';
-import { ChunkManager } from './world/ChunkManager.js';
-import { WorldGrid } from './world/WorldGrid.js';
+import { ChunkManager } from './world/ChunkManager.js?v=2';
+import { WorldGrid } from './world/WorldGrid.js?v=2';
 import { stepAutomata, stepGrassGrowth } from './world/automata.js';
-import { Camera } from './camera.js';
-import { Renderer } from './renderer.js';
+import { Camera } from './camera.js?v=5';
+import { Renderer } from './renderer.js?v=4';
 import { InputManager } from './input.js';
 import { EntityManager } from './ecs/EntityManager.js';
-import { KingdomManager } from './ecs/KingdomManager.js';
-import { wanderSystem, movementSystem, hungerSystem, grazingSystem } from './ecs/systems.js';
+import { KingdomManager } from './ecs/KingdomManager.js?v=3';
+import { wanderSystem, movementSystem, hungerSystem, grazingSystem } from './ecs/systems.js?v=2';
 
 // ─── Bootstrap ──────────────────────────────────────────
 const canvas = document.getElementById('game-canvas');
 const chunkManager = new ChunkManager();
 const world = new WorldGrid(chunkManager);
 const renderer = new Renderer(canvas);  // resize canvas first
-const camera = new Camera(canvas);      // then compute base zoom from canvas size
+const camera = new Camera(canvas);      // computes zoom + centers world
 const entities = new EntityManager();
 const kingdoms = new KingdomManager();
 const input = new InputManager(canvas, camera, world, entities);
 
 // Wire up toolbar buttons
-document.querySelectorAll('.tool-btn').forEach(btn => {
+document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
         input.setTool(btn.dataset.tool);
     });
+});
+
+// Generate Island button
+document.getElementById('btn-generate-island').addEventListener('click', () => {
+    world.generateIsland();
 });
 
 // ─── Game Loop ──────────────────────────────────────────
@@ -52,14 +57,14 @@ function logicTick() {
     stepAutomata(world, chunkManager);
     stepGrassGrowth(world, chunkManager);
 
-    // ECS systems
-    wanderSystem(entities.positions, entities.velocities, entities.wanders);
+    // Kingdom system (runs first to build warTargeting set)
+    const warTargeting = kingdoms.update(entities, world, logicTicks);
+
+    // ECS systems — warTargeting units skip wander, they chase enemies instead
+    wanderSystem(entities.positions, entities.velocities, entities.wanders, warTargeting);
     movementSystem(entities.positions, entities.velocities, world);
     hungerSystem(entities.hungers, entities.healths);
     grazingSystem(entities.positions, entities.hungers, entities.grazers, world);
-
-    // Kingdom system
-    kingdoms.update(entities, world, logicTicks);
 
     // Remove dead entities (clean up kingdom membership too)
     for (const [id, hp] of entities.healths) {

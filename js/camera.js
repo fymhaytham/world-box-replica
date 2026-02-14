@@ -15,23 +15,25 @@ export class Camera {
         this.worldPxW = WORLD_W * TILE_SIZE;
         this.worldPxH = WORLD_H * TILE_SIZE;
 
-        // The base zoom where world fits = 1× display
+        // The base zoom where world fills viewport (covers both axes)
         this._baseZoom = 1;
         this._computeBaseZoom();
 
-        // Internal zoom = _baseZoom * displayZoom
-        this.zoom = this._baseZoom; // start at 1× (full world)
-        this.maxDisplayZoom = 6;    // max zoom-in in display units
+        // Start at 1× = world fills viewport, only water tiles visible
+        this.zoom = this._baseZoom;
+        this.maxDisplayZoom = 6;
 
         this._dragging = false;
         this._lastMX = 0;
         this._lastMY = 0;
 
         this._bindEvents();
+        this.centerOnWorld();
         this._clamp();
 
         window.addEventListener('resize', () => {
             this._computeBaseZoom();
+            this.centerOnWorld();
             this._clamp();
         });
     }
@@ -39,25 +41,42 @@ export class Camera {
     _computeBaseZoom() {
         const zx = this.canvas.width / this.worldPxW;
         const zy = this.canvas.height / this.worldPxH;
-        this._baseZoom = Math.max(zx, zy);
+        // Use min so the entire world (island + water) fits in viewport
+        this._baseZoom = Math.min(zx, zy);
     }
 
-    /** Display zoom: 1× = world fits viewport */
+    /** Display zoom: 1× = entire world fits viewport */
     get displayZoom() {
         return this.zoom / this._baseZoom;
     }
 
+    /** Center the camera so the world is in the middle of the viewport */
+    centerOnWorld() {
+        const viewW = this.canvas.width / this.zoom;
+        const viewH = this.canvas.height / this.zoom;
+        this.x = (this.worldPxW - viewW) / 2;
+        this.y = (this.worldPxH - viewH) / 2;
+    }
+
     _clamp() {
-        // Min zoom = base zoom (1× display = full world view)
-        const minZoom = this._baseZoom;
+        const minZoom = this._baseZoom;   // 1× = full world visible
         const maxZoom = this._baseZoom * this.maxDisplayZoom;
         this.zoom = Math.max(minZoom, Math.min(maxZoom, this.zoom));
 
         const viewW = this.canvas.width / this.zoom;
         const viewH = this.canvas.height / this.zoom;
 
-        this.x = Math.max(0, Math.min(this.worldPxW - viewW, this.x));
-        this.y = Math.max(0, Math.min(this.worldPxH - viewH, this.y));
+        // Center axes where viewport exceeds world; clamp otherwise
+        if (viewW >= this.worldPxW) {
+            this.x = (this.worldPxW - viewW) / 2;
+        } else {
+            this.x = Math.max(0, Math.min(this.worldPxW - viewW, this.x));
+        }
+        if (viewH >= this.worldPxH) {
+            this.y = (this.worldPxH - viewH) / 2;
+        } else {
+            this.y = Math.max(0, Math.min(this.worldPxH - viewH, this.y));
+        }
     }
 
     _bindEvents() {

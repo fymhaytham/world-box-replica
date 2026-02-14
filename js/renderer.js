@@ -9,6 +9,8 @@ export class Renderer {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.ctx.imageSmoothingEnabled = false;
+        this._worldPxW = WORLD_W * TILE_SIZE;
+        this._worldPxH = WORLD_H * TILE_SIZE;
 
         this._resize();
         window.addEventListener('resize', () => this._resize());
@@ -24,13 +26,18 @@ export class Renderer {
         const cw = this.canvas.width;
         const ch = this.canvas.height;
 
-        // Ocean fill
+        // Clear canvas
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = '#0D47A1';
-        ctx.fillRect(0, 0, cw, ch);
+        ctx.clearRect(0, 0, cw, ch);
 
         // Apply camera
         camera.applyTransform(ctx);
+
+        // Ocean fill in world-space — extends far beyond world bounds
+        // so zoomed-out views show seamless ocean everywhere
+        const pad = (WORLD_W + WORLD_H) * TILE_SIZE;   // generous overshoot
+        ctx.fillStyle = '#0D47A1';
+        ctx.fillRect(-pad, -pad, this._worldPxW + pad * 2, this._worldPxH + pad * 2);
 
         // Draw terrain
         chunkManager.draw(ctx, camera, world);
@@ -210,9 +217,44 @@ export class Renderer {
                 ctx.stroke();
             }
 
-            // Health bar if damaged
+            // Crown for kings
+            const kid = km ? km.membership.get(id) : undefined;
+            const isKing = kid !== undefined && km.kingdoms.get(kid)?.leaderId === id;
+            if (isKing) {
+                const cx = sx + TILE_SIZE / 2;
+                const crownTop = sy + TILE_SIZE / 2 - radius * 1.15;
+                const crownW = radius * 1.4;
+                const crownH = radius * 0.7;
+
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                // Crown base
+                ctx.moveTo(cx - crownW, crownTop + crownH);
+                ctx.lineTo(cx - crownW, crownTop + crownH * 0.3);
+                // Left point
+                ctx.lineTo(cx - crownW * 0.5, crownTop + crownH * 0.6);
+                // Center point
+                ctx.lineTo(cx, crownTop);
+                // Right point
+                ctx.lineTo(cx + crownW * 0.5, crownTop + crownH * 0.6);
+                ctx.lineTo(cx + crownW, crownTop + crownH * 0.3);
+                ctx.lineTo(cx + crownW, crownTop + crownH);
+                ctx.closePath();
+                ctx.fill();
+
+                // Crown outline
+                ctx.strokeStyle = '#B8860B';
+                ctx.lineWidth = 0.3;
+                ctx.stroke();
+            }
+
+            // Check personality (humans only)
+            const pers = em.personalities.get(id);
             const hp = em.healths.get(id);
-            if (hp && hp.current < hp.max) {
+            const isDamaged = hp && hp.current < hp.max;
+
+            // Health bar if damaged
+            if (isDamaged) {
                 const barW = TILE_SIZE * 1.2;
                 const barH = 1;
                 const bx = sx + TILE_SIZE / 2 - barW / 2;
@@ -224,6 +266,27 @@ export class Renderer {
                 const pct = hp.current / hp.max;
                 ctx.fillStyle = pct > 0.5 ? '#4CAF50' : pct > 0.25 ? '#FF9800' : '#F44336';
                 ctx.fillRect(bx, by, barW * pct, barH);
+            }
+
+            // Personality number above head
+            if (pers) {
+                const pVal = pers.value;
+                // Color by personality
+                const PERS_COLORS = { 1: '#F44336', 2: '#FF9800', 3: '#FFFFFF', 4: '#00BCD4', 5: '#FFD700' };
+                ctx.fillStyle = PERS_COLORS[pVal] || '#FFFFFF';
+                const fontSize = Math.max(2, TILE_SIZE * 0.8);
+                ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const label = `${pVal}`;
+
+                // Position: above health bar if damaged, just above head if not
+                const labelY = isDamaged ? sy - 2.5 : (isKing ? sy - 2 : sy - 0.5);
+                ctx.fillText(label, sx + TILE_SIZE / 2, labelY);
+
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
             }
         }
     }
@@ -250,7 +313,7 @@ export class Renderer {
         // Kingdom legend (top-right)
         if (km && km.kingdoms.size > 0) {
             const legendH = km.kingdoms.size * 18 + 24;
-            const legendW = 160;
+            const legendW = 190;
             const lx = this.canvas.width - legendW - 8;
             const ly = 8;
 
@@ -263,6 +326,9 @@ export class Renderer {
             ctx.font = 'bold 10px Inter, sans-serif';
             ctx.fillText('KINGDOMS', lx + 10, ly + 16);
 
+            const PERS_LABELS = { 1: '⚔', 2: '😤', 3: '👑', 4: '🕊', 5: '☮' };
+            const PERS_HUD_COLORS = { 1: '#F44336', 2: '#FF9800', 3: '#ccc', 4: '#00BCD4', 5: '#FFD700' };
+
             let row = 0;
             for (const [kid, k] of km.kingdoms) {
                 const ry = ly + 28 + row * 18;
@@ -274,10 +340,19 @@ export class Renderer {
                 ctx.arc(lx + 14, ry, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Name + member count
+                // King personality
+                const kingPers = em ? em.personalities.get(k.leaderId) : null;
+                const pVal = kingPers ? kingPers.value : 3;
+
+                // Name + member count + personality
                 ctx.fillStyle = '#ccc';
                 ctx.font = '11px Inter, sans-serif';
                 ctx.fillText(`${k.name} (${k.members.size})`, lx + 24, ry + 4);
+
+                // Personality indicator
+                ctx.fillStyle = PERS_HUD_COLORS[pVal] || '#ccc';
+                ctx.font = '9px Inter, sans-serif';
+                ctx.fillText(`${PERS_LABELS[pVal] || ''}${pVal}`, lx + legendW - 36, ry + 3);
 
                 // War indicator
                 if (atWar) {
