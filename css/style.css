@@ -129,3 +129,124 @@ body {
   cursor: crosshair;
   background: #0D47A1;
 }
+
+/* ─── Main Menu ──────────────────────────────────────── */
+#main-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #1a1a2e;
+  /* Solid dark blue-purple */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  image-rendering: pixelated;
+  font-family: 'Press Start 2P', cursive;
+  /* Retro font */
+}
+
+.menu-content {
+  text-align: center;
+  color: #fff;
+  border: 4px solid #fff;
+  padding: 3rem;
+  background: #0f0f1a;
+  box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.5);
+  max-width: 600px;
+  width: 90%;
+}
+
+.menu-title {
+  font-size: 2.5rem;
+  /* Adjusted for blocky font */
+  font-weight: 400;
+  /* Font is naturally bold */
+  margin-bottom: 1rem;
+  color: #ffcc00;
+  /* Retro yellow/gold */
+  text-shadow: 4px 4px 0px #b83612;
+  /* Hard shadow */
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.menu-subtitle {
+  font-size: 0.8rem;
+  color: #a0a0c0;
+  margin-bottom: 3rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 300px;
+  /* Constrain width */
+  margin: 0 auto;
+}
+
+.menu-btn {
+  padding: 1.2rem 1rem;
+  border: 4px solid #fff;
+  border-radius: 0;
+  /* No rounding */
+  font-size: 0.9rem;
+  font-weight: 400;
+  /* Font handling */
+  cursor: pointer;
+  transition: all 0.1s steps(2);
+  /* Stepped transition */
+  font-family: inherit;
+  width: 100%;
+  text-transform: uppercase;
+  position: relative;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+}
+
+.menu-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.5);
+}
+
+.menu-btn.primary {
+  background: #3b82f6;
+  color: white;
+  border-color: #fff;
+}
+
+.menu-btn.primary:hover {
+  background: #2563eb;
+  color: #ffcc00;
+}
+
+.menu-btn.secondary {
+  background: #4b5563;
+  color: #d1d5db;
+  border-color: #d1d5db;
+}
+
+.menu-btn.secondary:hover {
+  background: #374151;
+  color: white;
+  border-color: white;
+}
+
+.menu-footer {
+  margin-top: 4rem;
+  font-size: 0.6rem;
+  color: #6b7280;
+  font-family: 'Inter', sans-serif;
+  /* Keep footer readable */
+  opacity: 0.6;
+}
+
+/* Hide menu when game starts */
+body.game-active #main-menu {
+  display: none;
+}

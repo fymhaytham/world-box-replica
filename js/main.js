@@ -75,4 +75,38 @@ function logicTick() {
     }
 }
 
-requestAnimationFrame(frame);
+
+
+// ─── Main Menu Logic ────────────────────────────────────
+let isGameRunning = false;
+
+function startGame() {
+    if (isGameRunning) return;
+    isGameRunning = true;
+
+    // UI Updates
+    document.body.classList.add('game-active');
+
+    // Generate initial world if empty (optional, but good for "New Game")
+    // world.generateIsland(); // Uncomment if we want auto-generation on start
+
+    // Start Loop
+    lastTime = performance.now();
+    requestAnimationFrame(frame);
+}
+
+// Event Listeners
+document.getElementById('btn-new-game').addEventListener('click', () => {
+    // For a "New Game", we might want to clear the world. 
+    // For now, we just start the flow.
+    world.generateIsland(); // Make sure they start with something
+    startGame();
+});
+
+document.getElementById('btn-load-game').addEventListener('click', () => {
+    alert("Save/Load system coming soon!");
+});
+
+// Initial Render (so canvas isn't blank black if visible behind menu)
+renderer.render(camera, chunkManager, world, entities, kingdoms);
+
