@@ -7,7 +7,7 @@ import { Renderer } from './renderer.js?v=4';
 import { InputManager } from './input.js';
 import { EntityManager } from './ecs/EntityManager.js?v=reset';
 import { KingdomManager } from './ecs/KingdomManager.js?v=reset';
-import { wanderSystem, movementSystem, hungerSystem, grazingSystem, fireDamageSystem } from './ecs/systems.js?v=3';
+import { wanderSystem, movementSystem, hungerSystem, grazingSystem, fireDamageSystem, zombieBehaviorSystem, humanZombieResponseSystem } from './ecs/systems.js?v=4';
 
 // ─── Bootstrap ──────────────────────────────────────────
 const canvas = document.getElementById('game-canvas');
@@ -82,6 +82,10 @@ function logicTick() {
     // Kingdom system (runs first to build warTargeting set)
     const warTargeting = kingdoms.update(entities, world, logicTicks);
 
+    // Zombie & Human AI
+    zombieBehaviorSystem(entities, world);
+    humanZombieResponseSystem(entities, world);
+
     // ECS systems — warTargeting units skip wander, they chase enemies instead
     wanderSystem(entities.positions, entities.velocities, entities.wanders, warTargeting);
     movementSystem(entities.positions, entities.velocities, world);
@@ -92,6 +96,31 @@ function logicTick() {
     // Remove dead entities (clean up kingdom membership too)
     for (const [id, hp] of entities.healths) {
         if (hp.current <= 0) {
+            // INFECTION LOGIC:
+            // If human dies, check if near a zombie to reanimate
+            const pos = entities.positions.get(id);
+            const isHuman = entities.factions.has(id) && entities.factions.get(id).name === 'human';
+
+            if (isHuman && pos) {
+                // Check for nearby zombie (e.g. within 2 tiles)
+                let nearbyZombie = false;
+                for (const [zId, _] of entities.zombies) {
+                    const zPos = entities.positions.get(zId);
+                    if (zPos) {
+                        const dist = Math.hypot(pos.x - zPos.x, pos.y - zPos.y);
+                        if (dist < 2.5) {
+                            nearbyZombie = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (nearbyZombie) {
+                    // Spawn zombie at same location
+                    entities.spawnZombie(pos.x, pos.y);
+                }
+            }
+
             killEntity(id);
         }
     }

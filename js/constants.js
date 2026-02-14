@@ -95,6 +95,7 @@ export const TOOL = {
     ERASE: 'erase',
     SPAWN_HUMAN: 'spawn_human',
     SPAWN_SHEEP: 'spawn_sheep',
+    SPAWN_ZOMBIE: 'spawn_zombie',
 };
 
 // ─── Brush ──────────────────────────────────────────────

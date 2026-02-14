@@ -50,6 +50,7 @@ export class InputManager {
                 case '8': this.currentTool = TOOL.ERASE; break;
                 case '9': this.currentTool = TOOL.SPAWN_HUMAN; break;
                 case '0': this.currentTool = TOOL.SPAWN_SHEEP; break;
+                case 'z': this.currentTool = TOOL.SPAWN_ZOMBIE; break;
             }
             this._updateToolbarUI();
         });
@@ -82,6 +83,9 @@ export class InputManager {
             this.mouseDown = false;
         } else if (this.currentTool === TOOL.SPAWN_SHEEP) {
             if (this.entities) this.entities.spawnSheep(tx, ty);
+            this.mouseDown = false;
+        } else if (this.currentTool === TOOL.SPAWN_ZOMBIE) {
+            if (this.entities) this.entities.spawnZombie(tx, ty);
             this.mouseDown = false;
         }
     }
