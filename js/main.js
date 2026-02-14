@@ -54,9 +54,18 @@ function frame(now) {
     lastTime = now;
     accumulator += dt;
 
+    // Safety Cap: Don't spiral if lag occurs
+    let updates = 0;
+    const MAX_UPDATES = 5;
+
     while (accumulator >= LOGIC_STEP) {
         logicTick();
         accumulator -= LOGIC_STEP;
+        updates++;
+        if (updates >= MAX_UPDATES) {
+            accumulator = 0; // Discard remaining time to catch up
+            break;
+        }
     }
 
     renderer.render(camera, chunkManager, world, entities, kingdoms);
@@ -82,10 +91,15 @@ function logicTick() {
     // Remove dead entities (clean up kingdom membership too)
     for (const [id, hp] of entities.healths) {
         if (hp.current <= 0) {
-            kingdoms.leaveKingdom(id);
-            entities.destroy(id);
+            killEntity(id);
         }
     }
+}
+
+// Centralized Death Logic (Referential Integrity)
+function killEntity(id) {
+    kingdoms.leaveKingdom(id);
+    entities.destroy(id);
 }
 
 

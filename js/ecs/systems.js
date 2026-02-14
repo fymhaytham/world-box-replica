@@ -27,7 +27,50 @@ export function wanderSystem(positions, velocities, wanders, warTargeting) {
 }
 
 // ─── Movement + Grid Collision (top-down AABB) ──────────
+// ─── Movement + Grid Collision (top-down AABB) ──────────
 export function movementSystem(positions, velocities, world) {
+    // 1. Soft Collision (Boids Separation)
+    // Naive O(N^2) check. For < 500 units this is fine.
+    // If we have thousands, we'd need a spatial hash grid.
+    const ids = [...positions.keys()]; // get all active entity IDs
+    const SEPARATION_DIST = 0.5;
+    const REPULSION_FORCE = 0.05;
+
+    for (let i = 0; i < ids.length; i++) {
+        const idA = ids[i];
+        const posA = positions.get(idA);
+        const velA = velocities.get(idA);
+        if (!posA || !velA) continue;
+
+        for (let j = i + 1; j < ids.length; j++) {
+            const idB = ids[j];
+            const posB = positions.get(idB);
+            if (!posB) continue;
+
+            const dx = posA.x - posB.x;
+            const dy = posA.y - posB.y;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < SEPARATION_DIST * SEPARATION_DIST && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const pushX = (dx / dist) * REPULSION_FORCE;
+                const pushY = (dy / dist) * REPULSION_FORCE;
+
+                // Push A away
+                velA.vx += pushX;
+                velA.vy += pushY;
+
+                // Push B opposite (Newton's 3rd law)
+                const velB = velocities.get(idB);
+                if (velB) {
+                    velB.vx -= pushX;
+                    velB.vy -= pushY;
+                }
+            }
+        }
+    }
+
+    // 2. Apply Velocity & Grid Collision
     for (const [id, pos] of positions) {
         const vel = velocities.get(id);
         if (!vel) continue;
@@ -55,6 +98,10 @@ export function movementSystem(positions, velocities, world) {
         // Clamp to world bounds
         pos.x = Math.max(0, Math.min(world.w - 1, pos.x));
         pos.y = Math.max(0, Math.min(world.h - 1, pos.y));
+
+        // Damping (optional, stops infinite drift)
+        vel.vx *= 0.9;
+        vel.vy *= 0.9;
     }
 }
 
