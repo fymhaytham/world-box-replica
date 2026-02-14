@@ -49,7 +49,7 @@ export const TILE_WALKABLE = {
     [TILE.DIRT]: true,
     [TILE.GRASS]: true,
     [TILE.FOREST]: true,
-    [TILE.STONE]: true,
+    [TILE.STONE]: false,
     [TILE.SNOW]: true,
     [TILE.FIRE]: false,
     [TILE.LAVA]: false,
