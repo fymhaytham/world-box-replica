@@ -7,7 +7,7 @@ import { Renderer } from './renderer.js?v=4';
 import { InputManager } from './input.js';
 import { EntityManager } from './ecs/EntityManager.js?v=reset';
 import { KingdomManager } from './ecs/KingdomManager.js?v=reset';
-import { wanderSystem, movementSystem, hungerSystem, grazingSystem } from './ecs/systems.js?v=2';
+import { wanderSystem, movementSystem, hungerSystem, grazingSystem, fireDamageSystem } from './ecs/systems.js?v=3';
 
 // ─── Bootstrap ──────────────────────────────────────────
 const canvas = document.getElementById('game-canvas');
@@ -87,6 +87,7 @@ function logicTick() {
     movementSystem(entities.positions, entities.velocities, world);
     hungerSystem(entities.hungers, entities.healths);
     grazingSystem(entities.positions, entities.hungers, entities.grazers, world);
+    fireDamageSystem(entities, world);
 
     // Remove dead entities (clean up kingdom membership too)
     for (const [id, hp] of entities.healths) {

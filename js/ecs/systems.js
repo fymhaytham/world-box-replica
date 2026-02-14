@@ -131,3 +131,73 @@ export function grazingSystem(positions, hungers, grazers, world) {
         }
     }
 }
+
+// ─── Fire Damage System (Burn & Explode) ────────────────
+export function fireDamageSystem(entities, world) {
+    const { positions, healths, renders } = entities;
+
+    // We iterate backwards or use a kill list if we were deleting here,
+    // but we just modify HP. Deletion happens in main loop.
+    for (const [id, pos] of positions) {
+        const hp = healths.get(id);
+        if (!hp || hp.current <= 0) continue;
+
+        const tx = Math.floor(pos.x);
+        const ty = Math.floor(pos.y);
+        const tile = world.get(tx, ty);
+
+        if (tile === TILE.FIRE || tile === TILE.LAVA) {
+            // Apply Damage
+            hp.current -= 2.0; // 2 HP per tick damage
+
+            // Check for execution (Sheep Explode)
+            // We identify sheep by their render char '🐑' or if they have 'grazer' component
+            // Let's use grazer component as proxy for sheep
+            if (entities.grazers.has(id)) {
+                // EXPLODE!
+                hp.current = 0; // Kill instantly
+                explode(world, entities, pos.x, pos.y, 4);
+            }
+        }
+    }
+}
+
+function explode(world, entities, cx, cy, radius) {
+    const rSq = radius * radius;
+    const startX = Math.floor(cx - radius);
+    const endX = Math.floor(cx + radius);
+    const startY = Math.floor(cy - radius);
+    const endY = Math.floor(cy + radius);
+
+    // 1. Terrain Damage
+    for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+            const dx = x - cx;
+            const dy = y - cy;
+            if (dx * dx + dy * dy <= rSq) {
+                // 70% Fire, 30% Sand (Crater)
+                if (Math.random() < 0.7) {
+                    world.set(x, y, TILE.FIRE);
+                } else {
+                    world.set(x, y, TILE.SAND);
+                }
+            }
+        }
+    }
+
+    // 2. Entity Damage
+    for (const [id, pos] of entities.positions) {
+        const hp = entities.healths.get(id);
+        if (!hp || hp.current <= 0) continue;
+
+        const dx = pos.x - cx;
+        const dy = pos.y - cy;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq <= rSq) {
+            // High damage close to center, lower at edge
+            const damage = 50 * (1 - distSq / rSq);
+            hp.current -= damage;
+        }
+    }
+}
