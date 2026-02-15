@@ -1,7 +1,7 @@
 import { wanderSystem, movementSystem } from './MovementSystem.js';
 import { hungerSystem, grazingSystem } from './MetabolismSystem.js';
 import { zombieBehaviorSystem, humanZombieResponseSystem } from './CombatSystem.js';
-import { fireDamageSystem, cloudSystem } from './EnvironmentSystem.js';
+import { fireDamageSystem, cloudSystem, nukeSystem } from './EnvironmentSystem.js';
 
 /**
  * SystemManager — runs all ECS systems in the correct order each logic tick.
@@ -28,6 +28,7 @@ export function runAllSystems(entities, world, warTargeting) {
     // 4. Environment
     fireDamageSystem(entities, world);
     cloudSystem(entities, world);
+    nukeSystem(entities, world);
 }
 
 // Re-export individual systems for consumers that need granular access
@@ -35,5 +36,5 @@ export {
     wanderSystem, movementSystem,
     hungerSystem, grazingSystem,
     zombieBehaviorSystem, humanZombieResponseSystem,
-    fireDamageSystem, cloudSystem,
+    fireDamageSystem, cloudSystem, nukeSystem,
 };

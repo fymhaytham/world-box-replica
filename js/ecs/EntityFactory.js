@@ -51,3 +51,12 @@ export function spawnCloud(entities, x, y) {
     entities.clouds.set(id, C.Cloud());
     return id;
 }
+
+export function spawnNuke(entities, x, y) {
+    const id = entities._create();
+    entities.positions.set(id, C.Position(x + 0.5, y + 0.5));
+    entities.velocities.set(id, C.Velocity(0, 0));
+    entities.renders.set(id, C.Render('#006400', 1.2));
+    entities.nukes.set(id, C.Nuke(100)); // Explode after 5 seconds
+    return id;
+}

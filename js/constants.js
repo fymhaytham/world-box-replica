@@ -97,6 +97,7 @@ export const TOOL = {
     SPAWN_SHEEP: 'spawn_sheep',
     SPAWN_ZOMBIE: 'spawn_zombie',
     THUNDERSTORM: 'thunderstorm',
+    NUKE: 'nuke',
 };
 
 // ─── Brush ──────────────────────────────────────────────

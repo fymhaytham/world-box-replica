@@ -1,5 +1,5 @@
 import { TOOL, TILE, BRUSH_RADIUS } from './constants.js';
-import { spawnHuman, spawnSheep, spawnZombie, spawnCloud } from './ecs/EntityFactory.js';
+import { spawnHuman, spawnSheep, spawnZombie, spawnCloud, spawnNuke } from './ecs/EntityFactory.js';
 
 /**
  * Handles mouse/keyboard input and current tool selection.
@@ -53,6 +53,7 @@ export class InputManager {
                 case '0': this.currentTool = TOOL.SPAWN_SHEEP; break;
                 case 'z': this.currentTool = TOOL.SPAWN_ZOMBIE; break;
                 case 't': this.currentTool = TOOL.THUNDERSTORM; break;
+                case 'n': this.currentTool = TOOL.NUKE; break;
             }
             this._updateToolbarUI();
         });
@@ -91,6 +92,9 @@ export class InputManager {
             this.mouseDown = false;
         } else if (this.currentTool === TOOL.THUNDERSTORM) {
             if (this.entities) spawnCloud(this.entities, tx, ty);
+            this.mouseDown = false;
+        } else if (this.currentTool === TOOL.NUKE) {
+            if (this.entities) spawnNuke(this.entities, tx, ty);
             this.mouseDown = false;
         }
     }

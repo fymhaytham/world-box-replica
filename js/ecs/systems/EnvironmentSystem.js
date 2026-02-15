@@ -158,3 +158,74 @@ export function cloudSystem(entities, world) {
         }
     }
 }
+
+// ─── Nuke System ────────────────────────────────────────
+export function nukeSystem(entities, world) {
+    if (!entities.nukes) return;
+
+    for (const [id, nuke] of entities.nukes) {
+        nuke.timer--;
+
+        // Blink effect (visual feedback)
+        const render = entities.renders.get(id);
+        if (render) {
+            if (nuke.timer % 10 < 5) {
+                render.color = '#00FF00'; // Bright green flash
+            } else {
+                render.color = '#006400'; // Dark green
+            }
+        }
+
+        if (nuke.timer <= 0) {
+            const pos = entities.positions.get(id);
+            if (pos) {
+                nukeExplode(world, entities, pos.x, pos.y);
+            }
+            entities.destroy(id);
+        }
+    }
+}
+
+function nukeExplode(world, entities, cx, cy) {
+    const radius = 30;
+    const rSq = radius * radius;
+    const startX = Math.floor(Math.max(0, cx - radius));
+    const endX = Math.floor(Math.min(world.w - 1, cx + radius));
+    const startY = Math.floor(Math.max(0, cy - radius));
+    const endY = Math.floor(Math.min(world.h - 1, cy + radius));
+
+    // 1. Terrain Damage
+    for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+            const dx = x - cx;
+            const dy = y - cy;
+            if (dx * dx + dy * dy <= rSq) {
+                // Massive destruction: Center turns to lava/fire, edges to sand
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 15) {
+                    world.set(x, y, TILE.LAVA);
+                } else if (dist < 30) {
+                    world.set(x, y, TILE.FIRE);
+                } else {
+                    world.set(x, y, TILE.SAND);
+                }
+            }
+        }
+    }
+
+    // 2. Entity Damage
+    for (const [id, pos] of entities.positions) {
+        const hp = entities.healths.get(id);
+        if (!hp || hp.current <= 0) continue;
+
+        const dx = pos.x - cx;
+        const dy = pos.y - cy;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq <= rSq) {
+            // Deal 75% max HP damage
+            const damage = hp.max * 0.75;
+            hp.current -= damage;
+        }
+    }
+}
