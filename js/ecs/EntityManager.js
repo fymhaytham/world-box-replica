@@ -1,8 +1,7 @@
-import * as C from './components.js';
-
 /**
  * EntityManager: pool of entity IDs and their component maps.
  * ECS-Lite — no inheritance, just maps of data.
+ * Spawning logic lives in EntityFactory.js.
  */
 export class EntityManager {
     constructor() {
@@ -19,6 +18,7 @@ export class EntityManager {
         this.grazers = new Map();
         this.personalities = new Map();
         this.zombies = new Map();
+        this.clouds = new Map();
     }
 
     _create() {
@@ -36,6 +36,7 @@ export class EntityManager {
         this.grazers.delete(id);
         this.personalities.delete(id);
         this.zombies.delete(id);
+        this.clouds.delete(id);
     }
 
     clear() {
@@ -49,46 +50,7 @@ export class EntityManager {
         this.grazers.clear();
         this.personalities.clear();
         this.zombies.clear();
+        this.clouds.clear();
         this._nextId = 1;
-    }
-
-    // ─── Prefab Spawners ─────────────────────────────────
-
-    spawnHuman(x, y) {
-        const id = this._create();
-        this.positions.set(id, C.Position(x + 0.5, y + 0.5));
-        this.velocities.set(id, C.Velocity());
-        this.healths.set(id, C.Health(100));
-        this.hungers.set(id, C.Hunger(0.03));
-        this.renders.set(id, C.Render('#FFD700', 0.8));
-        this.wanders.set(id, C.Wander(40));
-        this.factions.set(id, C.Faction('human'));
-        this.personalities.set(id, C.Personality());
-        return id;
-    }
-
-    spawnZombie(x, y) {
-        const id = this._create();
-        this.positions.set(id, C.Position(x + 0.5, y + 0.5));
-        this.velocities.set(id, C.Velocity());
-        this.healths.set(id, C.Health(60));
-        this.renders.set(id, C.Render('🧟', 0.8)); // Zombie emoji
-        // Zombies don't wander randomly, they hunt. But we add wander as fallback.
-        this.wanders.set(id, { timer: 0, interval: 80, dirX: 0, dirY: 0 });
-        this.zombies.set(id, true);
-        return id;
-    }
-
-    spawnSheep(x, y) {
-        const id = this._create();
-        this.positions.set(id, C.Position(x + 0.5, y + 0.5));
-        this.velocities.set(id, C.Velocity());
-        this.healths.set(id, C.Health(60));
-        this.hungers.set(id, C.Hunger(0.08));
-        this.renders.set(id, C.Render('#F5F5DC', 0.7));
-        this.wanders.set(id, C.Wander(25));
-        this.factions.set(id, C.Faction('sheep'));
-        this.grazers.set(id, C.Grazer());
-        return id;
     }
 }

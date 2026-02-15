@@ -1,4 +1,5 @@
 import { TOOL, TILE, BRUSH_RADIUS } from './constants.js';
+import { spawnHuman, spawnSheep, spawnZombie, spawnCloud } from './ecs/EntityFactory.js';
 
 /**
  * Handles mouse/keyboard input and current tool selection.
@@ -51,6 +52,7 @@ export class InputManager {
                 case '9': this.currentTool = TOOL.SPAWN_HUMAN; break;
                 case '0': this.currentTool = TOOL.SPAWN_SHEEP; break;
                 case 'z': this.currentTool = TOOL.SPAWN_ZOMBIE; break;
+                case 't': this.currentTool = TOOL.THUNDERSTORM; break;
             }
             this._updateToolbarUI();
         });
@@ -73,19 +75,22 @@ export class InputManager {
             [TOOL.WATER]: TILE.WATER,
             [TOOL.STONE]: TILE.STONE,
             [TOOL.FIRE]: TILE.FIRE,
-            [TOOL.ERASE]: TILE.DIRT, // erase paints dirt
+            [TOOL.ERASE]: TILE.DIRT,
         };
 
         if (tileMap[this.currentTool] !== undefined) {
             this._paintTiles(tx, ty, tileMap[this.currentTool]);
         } else if (this.currentTool === TOOL.SPAWN_HUMAN) {
-            if (this.entities) this.entities.spawnHuman(tx, ty);
+            if (this.entities) spawnHuman(this.entities, tx, ty);
             this.mouseDown = false;
         } else if (this.currentTool === TOOL.SPAWN_SHEEP) {
-            if (this.entities) this.entities.spawnSheep(tx, ty);
+            if (this.entities) spawnSheep(this.entities, tx, ty);
             this.mouseDown = false;
         } else if (this.currentTool === TOOL.SPAWN_ZOMBIE) {
-            if (this.entities) this.entities.spawnZombie(tx, ty);
+            if (this.entities) spawnZombie(this.entities, tx, ty);
+            this.mouseDown = false;
+        } else if (this.currentTool === TOOL.THUNDERSTORM) {
+            if (this.entities) spawnCloud(this.entities, tx, ty);
             this.mouseDown = false;
         }
     }

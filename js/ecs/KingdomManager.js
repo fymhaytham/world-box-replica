@@ -1,3 +1,5 @@
+import { spawnHuman } from './EntityFactory.js';
+
 /**
  * KingdomManager — handles formation of kingdoms, territory claims,
  * unit allegiance, and wars between kingdoms.
@@ -461,7 +463,7 @@ export class KingdomManager {
             if (spawnX === null) continue;
 
             // Spawn new human and auto-join kingdom
-            const childId = entities.spawnHuman(spawnX, spawnY);
+            const childId = spawnHuman(entities, spawnX, spawnY);
             this.joinKingdom(childId, kid);
         }
     }

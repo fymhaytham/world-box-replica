@@ -186,6 +186,47 @@ export class Renderer {
             const render = em.renders.get(id);
             if (!render) continue;
 
+            // SPECIAL: Cloud Rendering
+            if (em.clouds && em.clouds.has(id)) {
+                const cloud = em.clouds.get(id);
+                const sx = pos.x * TILE_SIZE;
+                const sy = pos.y * TILE_SIZE;
+
+                // Draw Cloud Emoji
+                ctx.font = `${TILE_SIZE * 3}px serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('☁️', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
+
+                // Draw Lightning
+                if (cloud.lightningDuration > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#FFD700'; // Gold lightning
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = '#FFFF00';
+                    ctx.shadowBlur = 10;
+
+                    const lx = sx + TILE_SIZE / 2;
+                    const ly = sy + TILE_SIZE / 2;
+                    const groundY = ly + TILE_SIZE * 4; // Strike ground 4 tiles down
+
+                    ctx.beginPath();
+                    ctx.moveTo(lx, ly);
+                    // Jagged line
+                    ctx.lineTo(lx - 5, ly + (groundY - ly) * 0.3);
+                    ctx.lineTo(lx + 5, ly + (groundY - ly) * 0.6);
+                    ctx.lineTo(lx, groundY);
+                    ctx.stroke();
+
+                    // Flash effect
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                    ctx.restore();
+                }
+                continue; // Skip standard circle rendering
+            }
+
             const sx = pos.x * TILE_SIZE;
             const sy = pos.y * TILE_SIZE;
             const radius = (render.size * TILE_SIZE) / 2;
