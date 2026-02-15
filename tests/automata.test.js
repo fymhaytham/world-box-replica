@@ -2,11 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { MockWorld } from './helpers/MockWorld.js';
 import { TILE, CHUNK_SIZE, CHUNKS_X, CHUNKS_Y } from '../js/constants.js';
 
-/**
- * We test the automata logic by importing stepAutomata and stepGrassGrowth.
- * Both need a chunkManager that implements isActive(), refreshActive(), markDirty().
- */
-
 // Minimal ChunkManager mock — all chunks active
 class MockChunkManager {
     isActive() { return true; }
@@ -29,7 +24,6 @@ describe('Automata', () => {
     // ─── Fire Spread ────────────────────────────────────
     describe('Fire Spread', () => {
         it('fire can spread to adjacent grass', () => {
-            // Create a fire tile surrounded by grass
             world.set(16, 16, TILE.FIRE);
             for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
@@ -38,13 +32,9 @@ describe('Automata', () => {
                 }
             }
 
-            // Run many ticks — fire should spread at least once (stochastic)
             let spreadFound = false;
-            for (let tick = 0; tick < 200 && !spreadFound; tick++) {
-                // Reset grass around each tick to test each independently
-                // Actually, let it accumulate
+            for (let tick = 0; tick < 1000 && !spreadFound; tick++) {
                 stepAutomata(world, cm);
-
                 for (let dy = -1; dy <= 1; dy++) {
                     for (let dx = -1; dx <= 1; dx++) {
                         if (dx === 0 && dy === 0) continue;
@@ -54,7 +44,6 @@ describe('Automata', () => {
                     }
                 }
             }
-
             expect(spreadFound).toBe(true);
         });
 
@@ -64,16 +53,12 @@ describe('Automata', () => {
 
             let spreadFound = false;
             for (let tick = 0; tick < 500 && !spreadFound; tick++) {
-                // Re-seed fire if it decayed before spreading
                 if (world.get(16, 16) !== TILE.FIRE) {
                     world.set(16, 16, TILE.FIRE);
                 }
-                // Re-seed forest if it already caught fire from a previous spread
-                // (we just need to detect at least one spread event)
                 stepAutomata(world, cm);
                 if (world.get(17, 16) === TILE.FIRE) spreadFound = true;
             }
-
             expect(spreadFound).toBe(true);
         });
 
@@ -84,8 +69,6 @@ describe('Automata', () => {
             for (let tick = 0; tick < 100; tick++) {
                 stepAutomata(world, cm);
             }
-
-            // Water should never become fire
             expect(world.get(17, 16)).toBe(TILE.WATER);
         });
     });
@@ -94,7 +77,6 @@ describe('Automata', () => {
     describe('Fire Decay', () => {
         it('fire decays to dirt over time', () => {
             world.set(16, 16, TILE.FIRE);
-            // Surround with non-flammable so it can't re-ignite
             for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
                     if (dx === 0 && dy === 0) continue;
@@ -107,15 +89,39 @@ describe('Automata', () => {
                 stepAutomata(world, cm);
                 if (world.get(16, 16) === TILE.DIRT) decayed = true;
             }
-
             expect(decayed).toBe(true);
+        });
+
+        it('should NOT spread infinitely (regression test)', () => {
+            // Create a large grassy world
+            const largeWorld = new MockWorld(64, 64, TILE.GRASS);
+            // Start a small fire in the center
+            largeWorld.set(32, 32, TILE.FIRE);
+
+            let maxFireCount = 0;
+            let finalFireCount = 0;
+
+            // Run simulation for a significant time
+            for (let tick = 0; tick < 500; tick++) {
+                stepAutomata(largeWorld, cm);
+
+                // Count fires
+                let currentFires = 0;
+                for (let i = 0; i < 64 * 64; i++) {
+                    if (largeWorld.data[i] === TILE.FIRE) currentFires++;
+                }
+                if (currentFires > maxFireCount) maxFireCount = currentFires;
+                finalFireCount = currentFires;
+            }
+            // With new constants, fire should be contained
+            expect(finalFireCount).toBeLessThan(100);
+            expect(finalFireCount).toBeLessThan(maxFireCount * 0.8 || 10);
         });
     });
 
     // ─── Grass Growth ───────────────────────────────────
     describe('Grass Growth', () => {
-        it('dirt adjacent to grass can grow into grass', () => {
-            // Use a small world so random ticks hit our target tile often
+        it('dirt adjacent to grass can grow grass', () => {
             const smallWorld = new MockWorld(16, 16, TILE.SAND);
             smallWorld.set(8, 8, TILE.GRASS);
             smallWorld.set(9, 8, TILE.DIRT);
@@ -125,12 +131,10 @@ describe('Automata', () => {
                 stepGrassGrowth(smallWorld, cm);
                 if (smallWorld.get(9, 8) === TILE.GRASS) grew = true;
             }
-
             expect(grew).toBe(true);
         });
 
         it('dirt NOT adjacent to grass/forest stays dirt', () => {
-            // Isolated dirt patch surrounded by sand
             world.set(16, 16, TILE.DIRT);
             world.set(15, 16, TILE.SAND);
             world.set(17, 16, TILE.SAND);
@@ -140,12 +144,10 @@ describe('Automata', () => {
             for (let tick = 0; tick < 100; tick++) {
                 stepGrassGrowth(world, cm);
             }
-
             expect(world.get(16, 16)).toBe(TILE.DIRT);
         });
 
         it('dirt adjacent to forest can also grow', () => {
-            // Use a small world so random ticks in stepGrassGrowth hit our target tile often
             const smallWorld = new MockWorld(16, 16, TILE.SAND);
             smallWorld.set(8, 8, TILE.FOREST);
             smallWorld.set(9, 8, TILE.DIRT);
@@ -155,7 +157,6 @@ describe('Automata', () => {
                 stepGrassGrowth(smallWorld, cm);
                 if (smallWorld.get(9, 8) === TILE.GRASS) grew = true;
             }
-
             expect(grew).toBe(true);
         });
     });

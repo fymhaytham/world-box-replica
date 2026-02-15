@@ -32,7 +32,7 @@ export const ZOMBIE_DETECTION_RADIUS = 8;
 export const HUMAN_ATTACK_DAMAGE = 1.0;
 
 // ─── Automata ───────────────────────────────────────────
-export const FIRE_SPREAD_CHANCE = 0.04;
-export const FIRE_DECAY_CHANCE = 0.06;
+export const FIRE_SPREAD_CHANCE = 0.01;
+export const FIRE_DECAY_CHANCE = 0.10;
 export const GRASS_GROWTH_CHANCE = 0.3;
 export const TICKS_PER_CHUNK = 3;

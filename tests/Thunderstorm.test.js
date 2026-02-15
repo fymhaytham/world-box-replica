@@ -83,4 +83,35 @@ describe('Thunderstorm Power', () => {
         expect(cloud.timer).toBeGreaterThan(39);
         expect(cloud.timer).toBeLessThan(62);
     });
+
+    it('should despawn after 30 seconds (600 ticks)', () => {
+        const id = spawnCloud(em, 10, 10);
+        const cloud = em.clouds.get(id);
+
+        // Fast forward to near death
+        cloud.despawnTimer = 1;
+
+        cloudSystem(em, world);
+
+        // Entity should be gone
+        expect(em.positions.has(id)).toBe(false);
+        expect(em.clouds.has(id)).toBe(false);
+    });
+
+    it('should move randomly over time', () => {
+        const id = spawnCloud(em, 10, 10);
+        const cloud = em.clouds.get(id);
+        const pos = em.positions.get(id);
+
+        // Force a movement update
+        cloud.moveTimer = 0;
+
+        cloudSystem(em, world);
+
+        // Should have picked a direction and moved
+        expect(cloud.dx).not.toBe(0);
+        expect(cloud.dy).not.toBe(0);
+        expect(pos.x).not.toBe(10 + 0.5); // Initial pos was 10.5
+        expect(pos.y).not.toBe(10 + 0.5);
+    });
 });

@@ -123,5 +123,38 @@ export function cloudSystem(entities, world) {
         if (cloud.lightningDuration > 0) {
             cloud.lightningDuration--;
         }
+
+        // 3. Cloud Movement & Despawn Logic
+        // Despawn
+        cloud.despawnTimer--;
+        if (cloud.despawnTimer <= 0) {
+            entities.destroy(id);
+            continue;
+        }
+
+        // Movement
+        cloud.moveTimer--;
+        if (cloud.moveTimer <= 0) {
+            // Pick new random direction every 2-4 seconds
+            cloud.moveTimer = 40 + Math.floor(Math.random() * 41);
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 0.05; // Slow drift
+            cloud.dx = Math.cos(angle) * speed;
+            cloud.dy = Math.sin(angle) * speed;
+        }
+
+        // Apply movement (ignore terrain, bounce off world edges)
+        pos.x += cloud.dx;
+        pos.y += cloud.dy;
+
+        // Bounce / Clamp
+        if (pos.x < 0 || pos.x >= world.w) {
+            cloud.dx = -cloud.dx;
+            pos.x = Math.max(0, Math.min(world.w - 0.1, pos.x));
+        }
+        if (pos.y < 0 || pos.y >= world.h) {
+            cloud.dy = -cloud.dy;
+            pos.y = Math.max(0, Math.min(world.h - 0.1, pos.y));
+        }
     }
 }
