@@ -105,6 +105,15 @@ export class KingdomManager {
             if (oldK) {
                 oldK.members.delete(entityId);
                 oldK.strength = oldK.members.size;
+
+                // If the king died/left, appoint a successor
+                if (oldK.leaderId === entityId && oldK.members.size > 0) {
+                    const candidates = [...oldK.members];
+                    const heir = candidates[Math.floor(Math.random() * candidates.length)];
+                    oldK.leaderId = heir;
+                    // Note: Update logic (crown) will handle visuals next frame
+                }
+
                 // Dissolve empty kingdoms — check for conquest
                 if (oldK.members.size === 0) {
                     // Find the attacker's kingdom for conquest
