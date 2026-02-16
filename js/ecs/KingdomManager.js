@@ -1,8 +1,9 @@
 import { spawnHuman } from './EntityFactory.js';
+import { TILE } from '../constants.js';
 
 /**
  * KingdomManager — handles formation of kingdoms, territory claims,
- * unit allegiance, and wars between kingdoms.
+ * unit allegiance, wars, and kingdom development (resources & tech).
  */
 
 // Color palette for kingdoms (distinct, vibrant colors)
@@ -19,8 +20,41 @@ const KINGDOM_COLORS = [
     '#00897B', // teal
 ];
 
+// ─── development constants ──────────────────────────────
+const BASE_MAX_POP = 60;
+
+const TECH_TREE = {
+    stone_tools: {
+        name: 'Stone Tools',
+        cost: { science: 50 },
+        effect: (k) => { k.modifiers.miningRate += 1; },
+        description: 'Allows gathering stone and improves mining.'
+    },
+    farming: {
+        name: 'Farming',
+        cost: { science: 100, wood: 50 },
+        effect: (k) => { k.modifiers.farmingRate += 1; },
+        description: 'Increases food production from grass/dirt.'
+    },
+    architecture: {
+        name: 'Architecture',
+        cost: { science: 150, wood: 100, stone: 50 },
+        effect: (k) => { k.maxPop += 40; },
+        description: 'Increases maximum population capacity.'
+    },
+    warfare: {
+        name: 'Warfare',
+        cost: { science: 200, wood: 100, stone: 100 },
+        effect: (k) => { k.modifiers.damageBonus += 2; },
+        description: 'Increases damage dealt by kingdom units.'
+    },
+    // Future techs can be added here
+};
+
 export class KingdomManager {
-    constructor() {
+    constructor(notifications) {
+        this.notifications = notifications; // Store reference
+
         this._nextKingdomId = 1;
 
         /** @type {Map<number, Kingdom>} */
@@ -37,6 +71,7 @@ export class KingdomManager {
         this._warTimer = 0;
         this._combatTimer = 0;
         this._breedTimer = 0;
+        this._resourceTimer = 0; // New timer for resource gathering
 
         /** @type {Set<string>} names currently in use */
         this._usedNames = new Set();
@@ -60,6 +95,7 @@ export class KingdomManager {
         this._warTimer = 0;
         this._combatTimer = 0;
         this._breedTimer = 0;
+        this._resourceTimer = 0;
     }
 
     /**
@@ -77,9 +113,24 @@ export class KingdomManager {
             capitalY: Math.floor(leaderPos.y),
             members: new Set([leaderId]),
             strength: 1,
+            // Economy & Tech
+            resources: {
+                food: 0,
+                wood: 0,
+                stone: 0,
+                science: 0,
+            },
+            techs: new Set(),
+            maxPop: BASE_MAX_POP,
+            modifiers: {
+                miningRate: 0,   // Base 0, unlocks with Stone Tools
+                farmingRate: 1,  // Base 1 for food gathering
+                damageBonus: 0,
+            },
         };
         this.kingdoms.set(id, kingdom);
         this.membership.set(leaderId, id);
+        this.notifications?.show(`Kingdom ${name} has been founded!`, 'info');
         return kingdom;
     }
 
@@ -135,6 +186,15 @@ export class KingdomManager {
                     if (attackerK) {
                         attackerK.capitalX = oldK.capitalX;
                         attackerK.capitalY = oldK.capitalY;
+                        // Loot resources
+                        attackerK.resources.food += oldK.resources.food;
+                        attackerK.resources.wood += oldK.resources.wood;
+                        attackerK.resources.stone += oldK.resources.stone;
+                        attackerK.resources.science += oldK.resources.science;
+
+                        this.notifications?.show(`${attackerK.name} has conquered ${oldK.name}!`, 'conquest');
+                    } else {
+                        this.notifications?.show(`${oldK.name} has fallen.`, 'warning');
                     }
                 }
             }
@@ -160,6 +220,7 @@ export class KingdomManager {
         const lo = Math.min(kid1, kid2);
         const hi = Math.max(kid1, kid2);
         this.wars.add(`${lo}-${hi}`);
+        this.notifications?.show(`${this.kingdoms.get(kid1)?.name} and ${this.kingdoms.get(kid2)?.name} are at WAR!`, 'war');
     }
 
     areAtWar(kid1, kid2) {
@@ -173,6 +234,7 @@ export class KingdomManager {
         const lo = Math.min(kid1, kid2);
         const hi = Math.max(kid1, kid2);
         this.wars.delete(`${lo}-${hi}`);
+        this.notifications?.show(`${this.kingdoms.get(kid1)?.name} and ${this.kingdoms.get(kid2)?.name} made peace.`, 'peace');
     }
 
     // ─── Procedural Name Generator ───────────────────────
@@ -187,6 +249,7 @@ export class KingdomManager {
             'reach', 'veil', 'wood', 'haven', 'fall',
             'grove', 'cliff', 'crest', 'holme', 'ridge',
             'mere', 'watch', 'spire',
+            'opolis', 'gard', 'heim', 'bad', 'grad',
         ];
 
         // Try random combos, avoiding used names
@@ -215,6 +278,16 @@ export class KingdomManager {
         this._warDeclarationSystem(entities, tickCount);
         this._combatSystem(entities, tickCount);
         this._breedingSystem(entities, world, tickCount);
+
+        // New Development Systems
+        this._resourceTimer++;
+        if (this._resourceTimer >= 20) { // Every ~1 second
+            this._resourceGatheringSystem(entities, world);
+            this._distributionSystem(entities);
+            this._progressionSystem();
+            this._resourceTimer = 0;
+        }
+
         return this._warTargeting;
     }
 
@@ -357,10 +430,10 @@ export class KingdomManager {
             // Use the MORE peaceful king's peace chance
             const peaceChance = Math.max(PEACE_CHANCE[pValA] || 0.03, PEACE_CHANCE[pValB] || 0.03);
             if (Math.random() < peaceChance) {
-                this.wars.delete(warKey);
                 // Clear retaliation records
                 this._attackedBy.get(Number(aIdStr))?.delete(Number(bIdStr));
                 this._attackedBy.get(Number(bIdStr))?.delete(Number(aIdStr));
+                this.makePeace(Number(aIdStr), Number(bIdStr));
             }
         }
     }
@@ -372,7 +445,7 @@ export class KingdomManager {
         this._combatTimer++;
 
         const ATTACK_RANGE = 3;  // tiles
-        const DAMAGE = 8;
+        let DAMAGE = 8;          // Base damage
         const CHASE_SPEED = 0.35;
         const TARGET_RANGE = 50; // tiles — seek enemies from far away
 
@@ -393,6 +466,10 @@ export class KingdomManager {
             const a = units[i];
             let closestEnemy = null;
             let closestDist = TARGET_RANGE;
+
+            const kA = this.kingdoms.get(a.kid);
+            // Apply kingdom tech bonuses to damage if available
+            const kDamage = DAMAGE + (kA ? kA.modifiers.damageBonus : 0);
 
             for (let j = 0; j < units.length; j++) {
                 if (i === j) continue;
@@ -423,7 +500,7 @@ export class KingdomManager {
                 if (this._combatTimer >= 5 && closestDist < ATTACK_RANGE) {
                     const hpEnemy = entities.healths.get(closestEnemy.id);
                     if (hpEnemy) {
-                        hpEnemy.current -= DAMAGE * (0.5 + Math.random() * 0.5);
+                        hpEnemy.current -= kDamage * (0.5 + Math.random() * 0.5);
                         this._lastAttackerKingdom.set(closestEnemy.id, a.kid);
                     }
                 }
@@ -442,14 +519,19 @@ export class KingdomManager {
         if (this._breedTimer < 80) return; // every ~4 seconds
         this._breedTimer = 0;
 
-        const MAX_POP = 60; // global population cap per kingdom
-
         for (const [kid, k] of this.kingdoms) {
             if (k.members.size < 2) continue;
-            if (k.members.size >= MAX_POP) continue;
+            if (k.members.size >= k.maxPop) continue; // Use dynamic maxPop
 
             // Chance to breed scales with population: more members = higher chance
             const breedChance = 0.08 + Math.min(k.members.size * 0.02, 0.4);
+            // Food abundant? Boost breeding
+            if (k.resources.food > k.members.size * 2) {
+                // Not implemented: extra boost?
+            }
+            // Starving? No breeding
+            if (k.resources.food <= 0) continue;
+
             if (Math.random() > breedChance) continue;
 
             // Pick a random member as "parent"
@@ -474,6 +556,121 @@ export class KingdomManager {
             // Spawn new human and auto-join kingdom
             const childId = spawnHuman(entities, spawnX, spawnY);
             this.joinKingdom(childId, kid);
+
+            // New child costs some food
+            k.resources.food = Math.max(0, k.resources.food - 5);
+        }
+    }
+
+    // ─── Resource Gathering System ────────────────────────
+    // Members gather resources based on the tile they are standing on.
+    _resourceGatheringSystem(entities, world) {
+        for (const [kid, k] of this.kingdoms) {
+            // Passive Science (base + per member)
+            k.resources.science += 0.5 + (k.members.size * 0.1);
+
+            for (const memberId of k.members) {
+                const pos = entities.positions.get(memberId);
+                if (!pos) continue;
+
+                const tx = Math.floor(pos.x);
+                const ty = Math.floor(pos.y);
+                const tile = world.get(tx, ty);
+
+                // Resource Logic
+                if (tile === TILE.FOREST) {
+                    k.resources.wood += 1;
+                    k.resources.food += 0.2 * k.modifiers.farmingRate; // Berries/Hunting
+                }
+                else if (tile === TILE.GRASS) {
+                    // Farming
+                    k.resources.food += 0.5 * k.modifiers.farmingRate;
+                }
+                else if (tile === TILE.STONE) {
+                    if (k.modifiers.miningRate > 0) {
+                        k.resources.stone += 1 * k.modifiers.miningRate;
+                    }
+                }
+                else if (tile === TILE.WATER || tile === TILE.WATER_DEEP) {
+                    // Fishing (if near water - simplified to ON water, though humans can't walk on water usually)
+                    // If humans stand on Sand next to water?
+                }
+                else if (tile === TILE.SAND) {
+                    // Maybe minimal food?
+                    k.resources.food += 0.1;
+                }
+            }
+        }
+    }
+
+    // ─── Distribution System ──────────────────────────────
+    // Feed the population from kingdom stores.
+    _distributionSystem(entities) {
+        const FOOD_PER_PERSON = 1.0;
+
+        for (const [kid, k] of this.kingdoms) {
+            if (k.members.size === 0) continue;
+
+            // Simple model: Deduct food for total population
+            // In a more complex model, we would iterate entities and reduce their individual hunger.
+            // For now, let's just reduce global kingdom food.
+            // If food is 0, we could apply hunger damage or stop healing.
+
+            const demand = k.members.size * FOOD_PER_PERSON;
+
+            if (k.resources.food >= demand) {
+                k.resources.food -= demand;
+                // Everyone is fed — maybe heal them slightly?
+                // This would require iterating all members.
+                // Let's do it to keep it robust.
+                for (const memberId of k.members) {
+                    const h = entities.hungers.get(memberId);
+                    if (h) {
+                        h.value = Math.max(0, h.value - 2); // Reduce hunger
+                    }
+                    // Also small heal?
+                    const hp = entities.healths.get(memberId);
+                    if (hp && hp.current < hp.max) {
+                        hp.current = Math.min(hp.max, hp.current + 1);
+                    }
+                }
+            } else {
+                // Not enough food! Rationing.
+                k.resources.food = 0;
+                // Hunger increases passively by MetabolismSystem anyway.
+                // We just don't reduce it here.
+                // Optionally: Apply extra morale penalty or starvation warning?
+            }
+        }
+    }
+
+    // ─── Progression System ───────────────────────────────
+    // Unlock new tech if resources allow
+    _progressionSystem() {
+        for (const [kid, k] of this.kingdoms) {
+            for (const [techKey, tech] of Object.entries(TECH_TREE)) {
+                if (k.techs.has(techKey)) continue;
+
+                // Check costs
+                let affordable = true;
+                for (const [res, amount] of Object.entries(tech.cost)) {
+                    if (k.resources[res] < amount) {
+                        affordable = false;
+                        break;
+                    }
+                }
+
+                if (affordable) {
+                    // Buy it!
+                    for (const [res, amount] of Object.entries(tech.cost)) {
+                        k.resources[res] -= amount;
+                    }
+                    k.techs.add(techKey);
+                    tech.effect(k);
+                    console.log(`Kingdom ${k.name} researched ${tech.name}!`);
+                    this.notifications?.show(`${k.name} researched ${tech.name}!`, 'research');
+                }
+            }
         }
     }
 }

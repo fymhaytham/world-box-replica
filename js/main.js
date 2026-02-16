@@ -7,6 +7,7 @@ import { Renderer } from './renderer.js';
 import { InputManager } from './input.js';
 import { EntityManager } from './ecs/EntityManager.js';
 import { KingdomManager } from './ecs/KingdomManager.js';
+import { NotificationManager } from './ui/NotificationManager.js';
 import { runAllSystems } from './ecs/systems/SystemManager.js';
 import { spawnZombie } from './ecs/EntityFactory.js';
 
@@ -17,7 +18,8 @@ const world = new WorldGrid(chunkManager);
 const renderer = new Renderer(canvas);
 const camera = new Camera(canvas);
 const entities = new EntityManager();
-const kingdoms = new KingdomManager();
+const notifications = new NotificationManager();
+const kingdoms = new KingdomManager(notifications);
 const input = new InputManager(canvas, camera, world, entities);
 
 // Wire up toolbar buttons
