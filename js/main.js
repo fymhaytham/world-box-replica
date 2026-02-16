@@ -22,6 +22,11 @@ const notifications = new NotificationManager();
 const kingdoms = new KingdomManager(notifications);
 const input = new InputManager(canvas, camera, world, entities);
 
+// Expose for debugging/verification
+window.world = world;
+window.entities = entities;
+window.kingdoms = kingdoms;
+
 // Wire up toolbar buttons
 document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {

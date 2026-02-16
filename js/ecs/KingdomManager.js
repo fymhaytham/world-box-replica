@@ -1,4 +1,4 @@
-import { spawnHuman } from './EntityFactory.js';
+import { spawnHuman, spawnNuke } from './EntityFactory.js';
 import { TILE } from '../constants.js';
 
 /**
@@ -48,7 +48,39 @@ const TECH_TREE = {
         effect: (k) => { k.modifiers.damageBonus += 2; },
         description: 'Increases damage dealt by kingdom units.'
     },
-    // Future techs can be added here
+    nuclear_projects: {
+        name: 'Manhattan Project',
+        cost: { science: 500, wood: 200, stone: 200 },
+        effect: (k) => { k.modifiers.hasNukes = true; },
+        description: 'Unlocks the ability to launch nuclear missiles.'
+    },
+    irrigation: {
+        name: 'Irrigation',
+        cost: { science: 100, wood: 50 },
+        effect: (k) => { k.modifiers.farmingRate += 1; },
+        description: 'Significantly improves food production.'
+    },
+    medicine: {
+        name: 'Medicine',
+        cost: { science: 150, food: 100 },
+        effect: (k) => { k.modifiers.healingRate += 1; },
+        description: 'Improves health recovery for citizens.'
+    },
+    masonry: {
+        name: 'Masonry',
+        cost: { science: 200, stone: 100 },
+        effect: (k) => { k.maxPop += 40; },
+        description: 'Allows for larger population capacity.'
+    },
+    iron_working: {
+        name: 'Iron Working',
+        cost: { science: 300, stone: 100 },
+        effect: (k) => {
+            k.modifiers.damageBonus += 1;
+            k.modifiers.defenseBonus += 2;
+        },
+        description: 'Better weapons and armor for units.'
+    },
 };
 
 export class KingdomManager {
@@ -126,7 +158,11 @@ export class KingdomManager {
                 miningRate: 0,   // Base 0, unlocks with Stone Tools
                 farmingRate: 1,  // Base 1 for food gathering
                 damageBonus: 0,
+                defenseBonus: 0,
+                healingRate: 0, // Bonus healing
+                hasNukes: false,
             },
+            nukeTimer: 0,
         };
         this.kingdoms.set(id, kingdom);
         this.membership.set(leaderId, id);
@@ -285,6 +321,7 @@ export class KingdomManager {
             this._resourceGatheringSystem(entities, world);
             this._distributionSystem(entities);
             this._progressionSystem();
+            this._nuclearWarfareSystem(entities, world);
             this._resourceTimer = 0;
         }
 
@@ -469,7 +506,7 @@ export class KingdomManager {
 
             const kA = this.kingdoms.get(a.kid);
             // Apply kingdom tech bonuses to damage if available
-            const kDamage = DAMAGE + (kA ? kA.modifiers.damageBonus : 0);
+            let kDamage = DAMAGE + (kA ? kA.modifiers.damageBonus : 0);
 
             for (let j = 0; j < units.length; j++) {
                 if (i === j) continue;
@@ -500,7 +537,11 @@ export class KingdomManager {
                 if (this._combatTimer >= 5 && closestDist < ATTACK_RANGE) {
                     const hpEnemy = entities.healths.get(closestEnemy.id);
                     if (hpEnemy) {
-                        hpEnemy.current -= kDamage * (0.5 + Math.random() * 0.5);
+                        const kB = this.kingdoms.get(closestEnemy.kid);
+                        const def = kB ? kB.modifiers.defenseBonus : 0;
+                        const finalDamage = Math.max(1, kDamage - (def * 0.5)); // Defense reduces damage
+
+                        hpEnemy.current -= finalDamage * (0.5 + Math.random() * 0.5);
                         this._lastAttackerKingdom.set(closestEnemy.id, a.kid);
                     }
                 }
@@ -631,7 +672,8 @@ export class KingdomManager {
                     // Also small heal?
                     const hp = entities.healths.get(memberId);
                     if (hp && hp.current < hp.max) {
-                        hp.current = Math.min(hp.max, hp.current + 1);
+                        const healAmount = 1 + k.modifiers.healingRate;
+                        hp.current = Math.min(hp.max, hp.current + healAmount);
                     }
                 }
             } else {
@@ -646,6 +688,7 @@ export class KingdomManager {
 
     // ─── Progression System ───────────────────────────────
     // Unlock new tech if resources allow
+
     _progressionSystem() {
         for (const [kid, k] of this.kingdoms) {
             for (const [techKey, tech] of Object.entries(TECH_TREE)) {
@@ -667,9 +710,76 @@ export class KingdomManager {
                     }
                     k.techs.add(techKey);
                     tech.effect(k);
-                    console.log(`Kingdom ${k.name} researched ${tech.name}!`);
-                    this.notifications?.show(`${k.name} researched ${tech.name}!`, 'research');
+
+                    const progress = k.techs.size;
+                    const total = Object.keys(TECH_TREE).length;
+
+                    console.log(`Kingdom ${k.name} researched ${tech.name} (${progress}/${total})!`);
+                    this.notifications?.show(
+                        `${k.name} researched <b>${tech.name}</b> (${progress}/${total})!<br><small>${tech.description}</small>`,
+                        'research'
+                    );
                 }
+            }
+        }
+    }
+
+    // ─── Nuclear Warfare System ───────────────────────────
+    _nuclearWarfareSystem(entities, world) {
+        for (const [kid, k] of this.kingdoms) {
+            // Check if kingdom has nukes
+            if (!k.modifiers.hasNukes) continue;
+
+            // Timer management
+            if (k.nukeTimer > 0) {
+                k.nukeTimer--;
+                continue;
+            }
+
+            // Find valid enemy target
+            let target = null;
+            const wars = [...this.wars];
+            // Find wars involving this kingdom
+            const enemyKingdomIds = [];
+            for (const warKey of wars) {
+                const [id1, id2] = warKey.split('-').map(Number);
+                if (id1 === kid) enemyKingdomIds.push(id2);
+                else if (id2 === kid) enemyKingdomIds.push(id1);
+            }
+
+            if (enemyKingdomIds.length === 0) continue;
+
+            // Select a random enemy kingdom
+            const enemyKid = enemyKingdomIds[Math.floor(Math.random() * enemyKingdomIds.length)];
+            const enemyK = this.kingdoms.get(enemyKid);
+
+            if (!enemyK || enemyK.members.size === 0) continue;
+
+            // Target Priority:
+            // 1. Capital (if populated)
+            // 2. Large concentration of troops (simplified: random member)
+
+            // 50% chance to target capital, 50% random unit
+            if (Math.random() < 0.5) {
+                target = { x: enemyK.capitalX, y: enemyK.capitalY };
+            } else {
+                const members = [...enemyK.members];
+                const victimId = members[Math.floor(Math.random() * members.length)];
+                const pos = entities.positions.get(victimId);
+                if (pos) target = { x: pos.x, y: pos.y };
+            }
+
+            if (target) {
+                // Launch Nuke!
+                spawnNuke(entities, target.x, target.y);
+
+                // Notifications
+                this.notifications?.show(`${k.name} LAUNCHED A NUKE AT ${enemyK.name}!`, 'danger');
+                console.log(`${k.name} launched a NUKE at ${enemyK.name}!`);
+
+                // Reset timer (e.g., 60 seconds = ~1200 ticks at 20tps, but we call this every 20 ticks)
+                // So delay is in "loop calls". 60s / 1s = 60 calls.
+                k.nukeTimer = 60;
             }
         }
     }
