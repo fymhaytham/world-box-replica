@@ -29,10 +29,18 @@ export class WorldGrid {
 
     // ─── Procedural generation ────────────────────────────
 
-    /** Generate the default procedural island */
+    /** Generate a random procedural island */
     generateIsland() {
         const cx = this.w / 2;
         const cy = this.h / 2;
+
+        // Randomize seed and parameters for each generation
+        this.seed = Math.random() * 1000000 | 0;
+        const scale = 0.03 + Math.random() * 0.04; // 0.03 to 0.07
+        const offsetX = Math.random() * 1000;
+        const offsetY = Math.random() * 1000;
+        const falloff = 1.0 + Math.random() * 0.4; // 1.0 to 1.4
+        const noiseWeight = 0.2 + Math.random() * 0.2; // 0.2 to 0.4
 
         for (let y = 0; y < this.h; y++) {
             for (let x = 0; x < this.w; x++) {
@@ -40,8 +48,8 @@ export class WorldGrid {
                 const dy = (y - cy) / cy;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                const n = this._simplex(x * 0.05, y * 0.05);
-                const elevation = 1.0 - dist * 1.1 + n * 0.3;
+                const n = this._simplex(offsetX + x * scale, offsetY + y * scale);
+                const elevation = 1.0 - dist * falloff + n * noiseWeight;
 
                 let tile;
                 if (elevation < 0.15) tile = TILE.WATER_DEEP;
@@ -86,7 +94,7 @@ export class WorldGrid {
     }
 
     _hash(x, y) {
-        let h = (x * 374761393 + y * 668265263 + 1013904223) | 0;
+        let h = (x * 374761393 + y * 668265263 + (this.seed || 1013904223)) | 0;
         h = ((h >> 13) ^ h) * 1274126177;
         h = ((h >> 16) ^ h);
         return (h & 0x7fffffff) / 0x7fffffff;
