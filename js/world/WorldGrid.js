@@ -40,20 +40,32 @@ export class WorldGrid {
         const worldTypes = ['CONTINENTS', 'ARCHIPELAGO', 'PANGEA', 'ISLAND'];
         const worldType = worldTypes[Math.random() * worldTypes.length | 0];
 
-        let scale, falloff, noiseWeight, octaves, warping;
+        let scale, falloff, octaves, landThreshold;
 
         switch (worldType) {
             case 'CONTINENTS':
-                scale = 0.015; falloff = 0.7; noiseWeight = 0.5; octaves = 5; warping = 2.0;
+                scale = 0.02 + Math.random() * 0.02;
+                falloff = 0.7 + Math.random() * 0.3;
+                octaves = 5;
+                landThreshold = 0.4;
                 break;
             case 'ARCHIPELAGO':
-                scale = 0.035; falloff = 0.5; noiseWeight = 0.6; octaves = 6; warping = 4.0;
+                scale = 0.08 + Math.random() * 0.04;
+                falloff = 0.3 + Math.random() * 0.3; // Very low falloff for islands throughout
+                octaves = 6;
+                landThreshold = 0.5;
                 break;
             case 'PANGEA':
-                scale = 0.012; falloff = 1.3; noiseWeight = 0.4; octaves = 4; warping = 1.5;
+                scale = 0.01 + Math.random() * 0.01;
+                falloff = 1.2 + Math.random() * 0.4;
+                octaves = 4;
+                landThreshold = 0.3;
                 break;
-            default: // ISLAND
-                scale = 0.025; falloff = 1.1; noiseWeight = 0.45; octaves = 5; warping = 3.0;
+            default: // SINGLE ISLAND
+                scale = 0.04 + Math.random() * 0.02;
+                falloff = 1.0 + Math.random() * 0.4;
+                octaves = 5;
+                landThreshold = 0.4;
         }
 
         const offsetX = Math.random() * 1000;
@@ -63,40 +75,23 @@ export class WorldGrid {
             for (let x = 0; x < this.w; x++) {
                 const dx = (x - cx) / cx;
                 const dy = (y - cy) / cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
-                // Organic "Squircle" distance with noise distortion
-                const dNoise = this._fbm(x * 0.02, y * 0.02, 2) * 0.2;
-                const dist = Math.pow(Math.pow(Math.abs(dx), 3) + Math.pow(Math.abs(dy), 3), 1 / 3) + dNoise;
+                // Fractal noise for more natural details
+                const n = this._fbm(offsetX + x * scale, offsetY + y * scale, octaves);
 
-                // Domain Warping: distort coordinates before main noise lookup
-                const qx = this._fbm((offsetX + x) * scale * 0.5, (offsetY + y) * scale * 0.5, 3);
-                const qy = this._fbm((offsetX + x) * scale * 0.5 + 5.2, (offsetY + y) * scale * 0.5 + 1.3, 3);
-
-                const rx = this._fbm((offsetX + x) * scale + warping * qx + 1.7, (offsetY + y) * scale + warping * qy + 9.2, 3);
-                const ry = this._fbm((offsetX + x) * scale + warping * qx + 8.3, (offsetY + y) * scale + warping * qy + 2.8, 3);
-
-                // Main elevation noise
-                const n = this._fbm((offsetX + x) * scale + warping * rx, (offsetY + y) * scale + warping * ry, octaves);
-
-                // Ridged noise for mountain peaks (sharper)
-                const ridge = 1.0 - Math.abs(this._fbm((offsetX + x) * scale * 2, (offsetY + y) * scale * 2, 2) * 2 - 1);
-
-                // Combine everything
-                let elevation = (n * 0.7 + ridge * 0.3) * noiseWeight + (1.0 - dist * falloff);
-
-                // Inland Lakes: dip elevation occasionally
-                if (elevation > 0.4 && elevation < 0.45) {
-                    const lakeNoise = this._fbm(x * 0.1, y * 0.1, 2);
-                    if (lakeNoise > 0.8) elevation -= 0.3;
-                }
+                // Distance masking to keep edges ocean
+                const mask = Math.max(0, 1.0 - Math.pow(dist, 1.5) * falloff);
+                const elevation = n * mask;
 
                 let tile;
-                if (elevation < 0.25) tile = TILE.WATER_DEEP;
-                else if (elevation < 0.38) tile = TILE.WATER;
-                else if (elevation < 0.42) tile = TILE.SAND;
-                else if (elevation < 0.6) tile = TILE.GRASS;
-                else if (elevation < 0.75) tile = TILE.FOREST;
-                else if (elevation < 0.88) tile = TILE.STONE;
+                // Thresholding relative to landThreshold
+                if (elevation < landThreshold * 0.4) tile = TILE.WATER_DEEP;
+                else if (elevation < landThreshold * 0.8) tile = TILE.WATER;
+                else if (elevation < landThreshold * 0.9) tile = TILE.SAND;
+                else if (elevation < landThreshold * 1.3) tile = TILE.GRASS;
+                else if (elevation < landThreshold * 1.7) tile = TILE.FOREST;
+                else if (elevation < landThreshold * 2.0) tile = TILE.STONE;
                 else tile = TILE.SNOW;
 
                 this.data[y * this.w + x] = tile;
