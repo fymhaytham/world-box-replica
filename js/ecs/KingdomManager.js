@@ -426,6 +426,11 @@ export class KingdomManager {
                 const chanceA = WAR_CHANCE[pValA] || 0;
                 const chanceB = WAR_CHANCE[pValB] || 0;
 
+                // Distance-based scaling: closer kingdoms are more likely to fight
+                const dist = Math.hypot(kA.capitalX - kB.capitalX, kA.capitalY - kB.capitalY);
+                // Baseline distance of 100 tiles. Factor ranges from 0.1x to 5.0x
+                const distanceFactor = Math.max(0.1, Math.min(5.0, 100 / (dist || 1)));
+
                 // Pacifists (5) only retaliate — check if they were attacked
                 let retaliateA = false, retaliateB = false;
                 if (pValA === 5) {
@@ -437,14 +442,16 @@ export class KingdomManager {
                     retaliateB = attackers && attackers.has(kidA);
                 }
 
-                if (Math.random() < chanceA || Math.random() < chanceB || retaliateA || retaliateB) {
+                if (Math.random() < (chanceA * distanceFactor) ||
+                    Math.random() < (chanceB * distanceFactor) ||
+                    retaliateA || retaliateB) {
                     this.declareWar(kidA, kidB);
                     // Track who attacked whom for pacifist retaliation
-                    if (chanceA > 0 || retaliateA) {
+                    if ((chanceA * distanceFactor) > 0 || retaliateA) {
                         if (!this._attackedBy.has(kidB)) this._attackedBy.set(kidB, new Set());
                         this._attackedBy.get(kidB).add(kidA);
                     }
-                    if (chanceB > 0 || retaliateB) {
+                    if ((chanceB * distanceFactor) > 0 || retaliateB) {
                         if (!this._attackedBy.has(kidA)) this._attackedBy.set(kidA, new Set());
                         this._attackedBy.get(kidA).add(kidB);
                     }
