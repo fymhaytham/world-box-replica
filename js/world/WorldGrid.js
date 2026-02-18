@@ -29,35 +29,74 @@ export class WorldGrid {
 
     // ─── Procedural generation ────────────────────────────
 
-    /** Generate a random procedural island */
+    /** Generate a dynamic world map with multiple islands or continents */
     generateIsland() {
         const cx = this.w / 2;
         const cy = this.h / 2;
 
-        // Randomize seed and parameters for each generation
+        // Randomize seed and world type
         this.seed = Math.random() * 1000000 | 0;
-        const scale = 0.03 + Math.random() * 0.04; // 0.03 to 0.07
+
+        const worldTypes = ['CONTINENTS', 'ARCHIPELAGO', 'PANGEA', 'ISLAND'];
+        const worldType = worldTypes[Math.random() * worldTypes.length | 0];
+
+        let scale, falloff, noiseWeight, octaves, warping;
+
+        switch (worldType) {
+            case 'CONTINENTS':
+                scale = 0.015; falloff = 0.7; noiseWeight = 0.5; octaves = 5; warping = 2.0;
+                break;
+            case 'ARCHIPELAGO':
+                scale = 0.035; falloff = 0.5; noiseWeight = 0.6; octaves = 6; warping = 4.0;
+                break;
+            case 'PANGEA':
+                scale = 0.012; falloff = 1.3; noiseWeight = 0.4; octaves = 4; warping = 1.5;
+                break;
+            default: // ISLAND
+                scale = 0.025; falloff = 1.1; noiseWeight = 0.45; octaves = 5; warping = 3.0;
+        }
+
         const offsetX = Math.random() * 1000;
         const offsetY = Math.random() * 1000;
-        const falloff = 1.0 + Math.random() * 0.4; // 1.0 to 1.4
-        const noiseWeight = 0.2 + Math.random() * 0.2; // 0.2 to 0.4
 
         for (let y = 0; y < this.h; y++) {
             for (let x = 0; x < this.w; x++) {
                 const dx = (x - cx) / cx;
                 const dy = (y - cy) / cy;
-                const dist = Math.sqrt(dx * dx + dy * dy);
 
-                const n = this._simplex(offsetX + x * scale, offsetY + y * scale);
-                const elevation = 1.0 - dist * falloff + n * noiseWeight;
+                // Organic "Squircle" distance with noise distortion
+                const dNoise = this._fbm(x * 0.02, y * 0.02, 2) * 0.2;
+                const dist = Math.pow(Math.pow(Math.abs(dx), 3) + Math.pow(Math.abs(dy), 3), 1 / 3) + dNoise;
+
+                // Domain Warping: distort coordinates before main noise lookup
+                const qx = this._fbm((offsetX + x) * scale * 0.5, (offsetY + y) * scale * 0.5, 3);
+                const qy = this._fbm((offsetX + x) * scale * 0.5 + 5.2, (offsetY + y) * scale * 0.5 + 1.3, 3);
+
+                const rx = this._fbm((offsetX + x) * scale + warping * qx + 1.7, (offsetY + y) * scale + warping * qy + 9.2, 3);
+                const ry = this._fbm((offsetX + x) * scale + warping * qx + 8.3, (offsetY + y) * scale + warping * qy + 2.8, 3);
+
+                // Main elevation noise
+                const n = this._fbm((offsetX + x) * scale + warping * rx, (offsetY + y) * scale + warping * ry, octaves);
+
+                // Ridged noise for mountain peaks (sharper)
+                const ridge = 1.0 - Math.abs(this._fbm((offsetX + x) * scale * 2, (offsetY + y) * scale * 2, 2) * 2 - 1);
+
+                // Combine everything
+                let elevation = (n * 0.7 + ridge * 0.3) * noiseWeight + (1.0 - dist * falloff);
+
+                // Inland Lakes: dip elevation occasionally
+                if (elevation > 0.4 && elevation < 0.45) {
+                    const lakeNoise = this._fbm(x * 0.1, y * 0.1, 2);
+                    if (lakeNoise > 0.8) elevation -= 0.3;
+                }
 
                 let tile;
-                if (elevation < 0.15) tile = TILE.WATER_DEEP;
-                else if (elevation < 0.28) tile = TILE.WATER;
-                else if (elevation < 0.35) tile = TILE.SAND;
-                else if (elevation < 0.55) tile = TILE.GRASS;
-                else if (elevation < 0.72) tile = TILE.FOREST;
-                else if (elevation < 0.85) tile = TILE.STONE;
+                if (elevation < 0.25) tile = TILE.WATER_DEEP;
+                else if (elevation < 0.38) tile = TILE.WATER;
+                else if (elevation < 0.42) tile = TILE.SAND;
+                else if (elevation < 0.6) tile = TILE.GRASS;
+                else if (elevation < 0.75) tile = TILE.FOREST;
+                else if (elevation < 0.88) tile = TILE.STONE;
                 else tile = TILE.SNOW;
 
                 this.data[y * this.w + x] = tile;
@@ -74,6 +113,21 @@ export class WorldGrid {
                 }
             }
         }
+    }
+
+    /** Fractal Brownian Motion using multi-octave value noise */
+    _fbm(x, y, octaves) {
+        let total = 0;
+        let frequency = 1;
+        let amplitude = 1;
+        let maxValue = 0;
+        for (let i = 0; i < octaves; i++) {
+            total += this._simplex(x * frequency, y * frequency) * amplitude;
+            maxValue += amplitude;
+            frequency *= 2;
+            amplitude *= 0.5;
+        }
+        return total / maxValue;
     }
 
     /**
