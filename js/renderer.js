@@ -327,6 +327,46 @@ export class Renderer {
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'alphabetic';
             }
+
+            // SPECIAL: Boat Rendering
+            if (em.boats && em.boats.has(id)) {
+                const boat = em.boats.get(id);
+                const bx = pos.x * TILE_SIZE;
+                const by = pos.y * TILE_SIZE;
+
+                // Indie style boat: simple hull + emoji
+                const hullW = render.size * TILE_SIZE;
+                const hullH = hullW * 0.6;
+
+                ctx.save();
+                ctx.translate(bx + TILE_SIZE / 2, by + TILE_SIZE / 2);
+
+                // Hull
+                ctx.fillStyle = render.color;
+                ctx.beginPath();
+                ctx.roundRect(-hullW / 2, -hullH / 2, hullW, hullH, 2);
+                ctx.fill();
+
+                // Deck detail
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.fillRect(-hullW / 2 + 2, -hullH / 2 + 2, hullW - 4, hullH - 4);
+
+                // Emoji icon
+                const emoji = boat.type === 'combat' ? '⚔️' : (boat.size === 'large' ? '🚢' : (boat.size === 'medium' ? '⛴️' : '⛵'));
+                ctx.font = `${hullH * 1.5}px serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, 0, -2);
+
+                // Passenger count
+                if (boat.passengers.size > 0) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `bold ${TILE_SIZE}px Inter, sans-serif`;
+                    ctx.fillText(`👥${boat.passengers.size}`, 0, hullH / 2 + 4);
+                }
+
+                ctx.restore();
+            }
         }
     }
 

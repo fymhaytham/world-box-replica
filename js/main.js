@@ -125,6 +125,23 @@ function logicTick() {
 
 // Centralized Death Logic (Referential Integrity)
 function killEntity(id) {
+    // If it's a boat, release passengers
+    if (entities.boats.has(id)) {
+        const boat = entities.boats.get(id);
+        for (const pId of boat.passengers) {
+            entities.passengerOf.delete(pId);
+        }
+    }
+    // If it's a passenger, remove from boat
+    if (entities.passengerOf.has(id)) {
+        const boatId = entities.passengerOf.get(id);
+        const boat = entities.boats.get(boatId);
+        if (boat) {
+            boat.passengers.delete(id);
+        }
+        entities.passengerOf.delete(id);
+    }
+
     kingdoms.leaveKingdom(id);
     entities.destroy(id);
 }

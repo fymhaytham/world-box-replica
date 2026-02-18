@@ -60,3 +60,21 @@ export function spawnNuke(entities, x, y) {
     entities.nukes.set(id, C.Nuke(100)); // Explode after 5 seconds
     return id;
 }
+
+export function spawnBoat(entities, x, y, size, type, kingdomId) {
+    const id = entities._create();
+    entities.positions.set(id, C.Position(x + 0.5, y + 0.5));
+    entities.velocities.set(id, C.Velocity());
+    entities.healths.set(id, C.Health(size === 'large' ? 500 : size === 'medium' ? 300 : 150));
+
+    // Aesthetic: boats are blue-ish grey or brown
+    const color = type === 'combat' ? '#455A64' : '#795548';
+    const renderSize = size === 'large' ? 2.5 : size === 'medium' ? 1.8 : 1.2;
+
+    entities.renders.set(id, C.Render(color, renderSize));
+    entities.boats.set(id, C.Boat(size, type, kingdomId));
+    entities.wanders.set(id, C.Wander(60)); // Boats wander more slowly
+    entities.factions.set(id, C.Faction('boat'));
+
+    return id;
+}

@@ -131,6 +131,11 @@ export class WorldGrid {
         return TILE_DYNAMIC[this.get(x, y)] ?? false;
     }
 
+    isSailable(x, y) {
+        const tile = this.get(x, y);
+        return tile === TILE.WATER || tile === TILE.WATER_DEEP;
+    }
+
     /**
      * Get the visual noise value for a tile (0-255) for color variation.
      */

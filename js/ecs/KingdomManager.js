@@ -1,4 +1,4 @@
-import { spawnHuman, spawnNuke } from './EntityFactory.js';
+import { spawnHuman, spawnNuke, spawnBoat } from './EntityFactory.js';
 import { TILE } from '../constants.js';
 
 /**
@@ -81,6 +81,18 @@ const TECH_TREE = {
         },
         description: 'Better weapons and armor for units.'
     },
+    sailing: {
+        name: 'Sailing',
+        cost: { science: 150, wood: 100 },
+        effect: (k) => { k.modifiers.canSail = true; },
+        description: 'Allows building transport boats for water travel.'
+    },
+    naval_warfare: {
+        name: 'Naval Warfare',
+        cost: { science: 300, wood: 200, stone: 100 },
+        effect: (k) => { k.modifiers.canNavalWar = true; },
+        description: 'Allows building combat boats for sea battles.'
+    },
 };
 
 export class KingdomManager {
@@ -161,8 +173,11 @@ export class KingdomManager {
                 defenseBonus: 0,
                 healingRate: 0, // Bonus healing
                 hasNukes: false,
+                canSail: false,
+                canNavalWar: false,
             },
             nukeTimer: 0,
+            navyTimer: 0,
         };
         this.kingdoms.set(id, kingdom);
         this.membership.set(leaderId, id);
@@ -249,6 +264,11 @@ export class KingdomManager {
         return k ? k.color : null;
     }
 
+    getLevel(k) {
+        // Base level 1, +1 for every 2 techs
+        return Math.floor(k.techs.size / 2) + 1;
+    }
+
     /**
      * Start a war between two kingdoms.
      */
@@ -322,6 +342,7 @@ export class KingdomManager {
             this._distributionSystem(entities);
             this._progressionSystem();
             this._nuclearWarfareSystem(entities, world);
+            this._navySystem(entities, world);
             this._resourceTimer = 0;
         }
 
@@ -789,5 +810,78 @@ export class KingdomManager {
                 k.nukeTimer = 60;
             }
         }
+    }
+
+    // ─── Navy System ──────────────────────────────────────
+    _navySystem(entities, world) {
+        for (const [kid, k] of this.kingdoms) {
+            if (!k.modifiers.canSail || this.getLevel(k) < 4) continue;
+
+            if (k.navyTimer > 0) {
+                k.navyTimer--;
+                continue;
+            }
+
+            // Decide to build a boat (random chance + resource check)
+            if (Math.random() < 0.2) {
+                const canAffordCombat = k.modifiers.canNavalWar && k.resources.wood >= 150 && k.resources.stone >= 50;
+                const canAffordTravel = k.resources.wood >= 80;
+
+                if (!canAffordTravel && !canAffordCombat) continue;
+
+                // Choose boat type: combat if at war and affordable, else travel
+                const isAtWar = [...this.wars].some(w => w.includes(`${kid}`));
+                const type = (isAtWar && canAffordCombat && Math.random() < 0.7) ? 'combat' : 'travel';
+
+                // Choose size: large (8%), medium (42%), small (50%)
+                const rnd = Math.random();
+                const size = rnd < 0.08 ? 'large' : (rnd < 0.5 ? 'medium' : 'small');
+
+                // Find a coastal spot near capital or members
+                let spawnPos = null;
+                const searchRadius = 15;
+
+                // Try near capital
+                for (let attempt = 0; attempt < 20; attempt++) {
+                    const tx = k.capitalX + Math.floor(Math.random() * searchRadius * 2) - searchRadius;
+                    const ty = k.capitalY + Math.floor(Math.random() * searchRadius * 2) - searchRadius;
+
+                    if (this._isCoastalTile(world, tx, ty)) {
+                        spawnPos = { x: tx, y: ty };
+                        break;
+                    }
+                }
+
+                if (spawnPos) {
+                    // Deduct resources
+                    if (type === 'combat') {
+                        k.resources.wood -= 150;
+                        k.resources.stone -= 50;
+                    } else {
+                        k.resources.wood -= 80;
+                    }
+
+                    spawnBoat(entities, spawnPos.x, spawnPos.y, size, type, kid);
+                    this.notifications?.show(`${k.name} has launched a ${size} ${type} boat!`, 'info');
+
+                    // Reset timer (~30-60 seconds)
+                    k.navyTimer = 30 + Math.floor(Math.random() * 30);
+                }
+            }
+        }
+    }
+
+    _isCoastalTile(world, x, y) {
+        // Must be Water next to Walkable land
+        const tile = world.get(x, y);
+        if (tile !== TILE.WATER && tile !== TILE.WATER_DEEP) return false;
+
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                if (world.isWalkable(x + dx, y + dy)) return true;
+            }
+        }
+        return false;
     }
 }

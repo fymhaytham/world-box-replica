@@ -12,6 +12,8 @@ describe('MovementSystem', () => {
         velocities = new Map();
         wanders = new Map();
         world = new MockWorld(32, 32, TILE.GRASS); // all walkable
+        positions.isPassenger = (id) => false;
+        positions.isBoat = (id) => false;
     });
 
     // ─── wanderSystem ───────────────────────────────────
@@ -81,6 +83,21 @@ describe('MovementSystem', () => {
             // X should not have moved past the water tile
             expect(pos.x).toBeGreaterThanOrEqual(1);
             expect(vel.vx).toBe(0); // velocity zeroed on collision
+        });
+
+        it('allows entity to move on stone tiles', () => {
+            // Place entity next to stone
+            positions.set(1, { x: 1.5, y: 1.5 });
+            velocities.set(1, { vx: -0.5, vy: 0 }); // moving left into stone
+
+            // Set tile (0, 1) to stone
+            world.set(0, 1, TILE.STONE);
+
+            movementSystem(positions, velocities, world);
+
+            const pos = positions.get(1);
+            // X should have moved into the stone tile because it's now walkable
+            expect(pos.x).toBeLessThan(1.5);
         });
 
         it('clamps position to world bounds', () => {

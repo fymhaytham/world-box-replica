@@ -1,6 +1,6 @@
-import { wanderSystem, movementSystem } from './MovementSystem.js';
+import { wanderSystem, movementSystem, boatSystem, boardingSystem } from './MovementSystem.js';
 import { hungerSystem, grazingSystem } from './MetabolismSystem.js';
-import { zombieBehaviorSystem, humanZombieResponseSystem } from './CombatSystem.js';
+import { zombieBehaviorSystem, humanZombieResponseSystem, boatBehaviorSystem } from './CombatSystem.js';
 import { fireDamageSystem, cloudSystem, nukeSystem } from './EnvironmentSystem.js';
 
 /**
@@ -12,14 +12,20 @@ import { fireDamageSystem, cloudSystem, nukeSystem } from './EnvironmentSystem.j
  *   3. Hunger + Grazing             (metabolism)
  *   4. Fire Damage + Clouds         (environment)
  */
-export function runAllSystems(entities, world, warTargeting) {
+export function runAllSystems(entities, world, warTargeting, kingdomManager) {
     // 1. Combat AI
     zombieBehaviorSystem(entities, world);
     humanZombieResponseSystem(entities, world);
+    boatBehaviorSystem(entities, kingdomManager);
 
     // 2. Movement
+    entities.positions.isPassenger = (id) => entities.passengerOf.has(id);
+    entities.positions.isBoat = (id) => entities.boats.has(id);
+
     wanderSystem(entities.positions, entities.velocities, entities.wanders, warTargeting);
     movementSystem(entities.positions, entities.velocities, world);
+    boatSystem(entities);
+    boardingSystem(entities, kingdomManager ? kingdomManager.membership : null);
 
     // 3. Metabolism
     hungerSystem(entities.hungers, entities.healths);
@@ -33,8 +39,8 @@ export function runAllSystems(entities, world, warTargeting) {
 
 // Re-export individual systems for consumers that need granular access
 export {
-    wanderSystem, movementSystem,
+    wanderSystem, movementSystem, boatSystem, boardingSystem,
     hungerSystem, grazingSystem,
-    zombieBehaviorSystem, humanZombieResponseSystem,
+    zombieBehaviorSystem, humanZombieResponseSystem, boatBehaviorSystem,
     fireDamageSystem, cloudSystem, nukeSystem,
 };

@@ -121,3 +121,68 @@ export function humanZombieResponseSystem(entities, world) {
         }
     }
 }
+
+// ─── Boat Behavior System ───────────────────────────────
+export function boatBehaviorSystem(entities, kingdomManager) {
+    const { positions, velocities, boats, healths, membership } = entities;
+
+    const CHASE_SPEED = 0.25;
+    const ATTACK_RANGE = 4;
+    const SEARCH_RADIUS = 40;
+
+    for (const [id, boat] of boats) {
+        if (boat.type !== 'combat') continue;
+
+        const pos = positions.get(id);
+        const vel = velocities.get(id);
+        const kid = boat.kingdomId;
+        if (!pos || !vel || kid === null || kid === undefined) continue;
+
+        let nearestEnemyId = null;
+        let minDistSq = SEARCH_RADIUS * SEARCH_RADIUS;
+
+        // Target enemy boats or units
+        for (const [eId, ePos] of positions) {
+            if (eId === id) continue;
+            // Get kingdom of target
+            let eKid = membership.get(eId);
+            if (eKid === undefined) {
+                const eBoat = boats.get(eId);
+                if (eBoat) eKid = eBoat.kingdomId;
+            }
+
+            if (eKid === undefined || eKid === null || (kingdomManager && !kingdomManager.areAtWar(kid, eKid))) continue;
+
+            const dx = ePos.x - pos.x;
+            const dy = ePos.y - pos.y;
+            const dSq = dx * dx + dy * dy;
+
+            if (dSq < minDistSq) {
+                minDistSq = dSq;
+                nearestEnemyId = eId;
+            }
+        }
+
+        if (nearestEnemyId) {
+            const ePos = positions.get(nearestEnemyId);
+            const dx = ePos.x - pos.x;
+            const dy = ePos.y - pos.y;
+            const dist = Math.sqrt(minDistSq);
+
+            // Move towards
+            if (dist > 1.5) {
+                vel.vx = (dx / dist) * CHASE_SPEED;
+                vel.vy = (dy / dist) * CHASE_SPEED;
+            }
+
+            // Attack
+            if (dist < ATTACK_RANGE) {
+                const eHp = healths.get(nearestEnemyId);
+                if (eHp) {
+                    // Boats do more damage
+                    eHp.current -= 2.0;
+                }
+            }
+        }
+    }
+}
