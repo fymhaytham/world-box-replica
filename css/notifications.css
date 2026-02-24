@@ -46,7 +46,13 @@
 }
 
 .toast-icon {
-    font-size: 18px;
+    width: 28px;
+    height: 28px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    image-rendering: pixelated;
+    flex-shrink: 0;
 }
 
 /* Variations */
@@ -56,10 +62,18 @@
     background: linear-gradient(90deg, rgba(41, 182, 246, 0.2), rgba(30, 30, 30, 0.9));
 }
 
+.notification-toast.research .toast-icon {
+    background-image: url('../assets/icons/research.png');
+}
+
 .notification-toast.war {
     border-color: #ef5350;
     /* Red */
     background: linear-gradient(90deg, rgba(239, 83, 80, 0.2), rgba(30, 30, 30, 0.9));
+}
+
+.notification-toast.war .toast-icon {
+    background-image: url('../assets/icons/war.png');
 }
 
 .notification-toast.peace {
@@ -68,8 +82,20 @@
     background: linear-gradient(90deg, rgba(102, 187, 106, 0.2), rgba(30, 30, 30, 0.9));
 }
 
+.notification-toast.peace .toast-icon {
+    background-image: url('../assets/icons/peace.png');
+}
+
 .notification-toast.conquest {
     border-color: #ffca28;
     /* Amber */
     background: linear-gradient(90deg, rgba(255, 202, 40, 0.2), rgba(30, 30, 30, 0.9));
+}
+
+.notification-toast.conquest .toast-icon {
+    background-image: url('../assets/icons/conquest.png');
+}
+
+.notification-toast.info .toast-icon {
+    background-image: url('../assets/icons/default.png');
 }

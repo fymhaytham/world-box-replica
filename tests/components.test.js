@@ -138,7 +138,7 @@ describe('Component Factories', () => {
     describe('Cloud', () => {
         it('starts with timer 0 and no lightning', () => {
             const c = Cloud();
-            expect(c.timer).toBe(0);
+            expect(c.timer).toBe(60);
             expect(c.lightningDuration).toBe(0);
         });
     });

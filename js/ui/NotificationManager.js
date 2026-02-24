@@ -21,15 +21,8 @@ export class NotificationManager {
         const toast = document.createElement('div');
         toast.className = `notification-toast ${type}`;
 
-        // Add icon based on types?
-        let icon = '📢';
-        if (type === 'research') icon = '🧪';
-        if (type === 'war') icon = '⚔️';
-        if (type === 'peace') icon = '🕊️';
-        if (type === 'conquest') icon = '👑';
-
         toast.innerHTML = `
-            <span class="toast-icon">${icon}</span>
+            <span class="toast-icon"></span>
             <span class="toast-message">${message}</span>
         `;
 

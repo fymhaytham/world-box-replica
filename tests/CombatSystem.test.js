@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { EntityManager } from '../js/ecs/EntityManager.js';
 import { spawnHuman, spawnZombie } from '../js/ecs/EntityFactory.js';
 import { zombieBehaviorSystem, humanZombieResponseSystem } from '../js/ecs/systems/CombatSystem.js';
+import { pathfollowingSystem } from '../js/ecs/systems/PathfollowingSystem.js';
 import { MockWorld } from './helpers/MockWorld.js';
 import { TILE } from '../js/constants.js';
 
@@ -24,6 +25,7 @@ describe('CombatSystem', () => {
             const zPosBefore = { ...em.positions.get(zId) };
 
             zombieBehaviorSystem(em, world);
+            pathfollowingSystem(em, world);
 
             const zVel = em.velocities.get(zId);
             // Zombie should move rightward (toward human at x=15)
@@ -69,12 +71,13 @@ describe('CombatSystem', () => {
         it('aggressive human moves toward zombie', () => {
             const hId = spawnHuman(em, 10, 10);
             em.factions.get(hId).name = 'human';
-            // Set aggressive personality (aggressiveness > 3)
-            em.personalities.set(hId, { value: 3, aggressiveness: 4 });
+            // Set aggressive personality (value <= 2)
+            em.personalities.set(hId, { value: 1 });
 
             const zId = spawnZombie(em, 15, 10);
 
             humanZombieResponseSystem(em, world);
+            pathfollowingSystem(em, world);
 
             const hVel = em.velocities.get(hId);
             // Should move rightward toward zombie
@@ -84,8 +87,8 @@ describe('CombatSystem', () => {
         it('peaceful human flees from zombie', () => {
             const hId = spawnHuman(em, 10, 10);
             em.factions.get(hId).name = 'human';
-            // Set peaceful personality (aggressiveness <= 3)
-            em.personalities.set(hId, { value: 4, aggressiveness: 2 });
+            // Set peaceful personality (value >= 4)
+            em.personalities.set(hId, { value: 5 });
 
             const zId = spawnZombie(em, 12, 10);
 
@@ -99,7 +102,7 @@ describe('CombatSystem', () => {
         it('aggressive human attacks zombie in melee range', () => {
             const hId = spawnHuman(em, 10, 10);
             em.factions.get(hId).name = 'human';
-            em.personalities.set(hId, { value: 1, aggressiveness: 5 });
+            em.personalities.set(hId, { value: 1 });
 
             const zId = spawnZombie(em, 10.3, 10); // Very close
 

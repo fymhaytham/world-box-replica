@@ -8,6 +8,7 @@ import {
     ZOMBIE_DETECTION_RADIUS,
     HUMAN_ATTACK_DAMAGE,
 } from '../../balance.js';
+import { Pathfinding } from '../../utils/Pathfinding.js';
 
 /**
  * CombatSystem — zombie hunting AI and human fight-or-flight response.
@@ -25,7 +26,7 @@ export function zombieBehaviorSystem(entities, world) {
 
         // Find nearest human
         for (const [hId, f] of entities.factions) {
-            if (f.name !== 'human') continue;
+            if (f.type !== 'human') continue;
             const hPos = entities.positions.get(hId);
             if (!hPos) continue;
 
@@ -41,14 +42,24 @@ export function zombieBehaviorSystem(entities, world) {
 
         if (targetId) {
             const hPos = entities.positions.get(targetId);
-            const dx = hPos.x - zPos.x;
-            const dy = hPos.y - zPos.y;
+            const path = entities.paths.get(zId);
             const dist = Math.sqrt(minDistSq);
 
-            // Move towards
-            if (dist > 0.1) {
-                zVel.vx = (dx / dist) * ZOMBIE_SPEED;
-                zVel.vy = (dy / dist) * ZOMBIE_SPEED;
+            if (path) {
+                const needsRecalc = path.targetId !== targetId || path.recalcTimer <= 0 || (path.points.length === 0 && dist > 1);
+                if (needsRecalc) {
+                    path.targetId = targetId;
+                    path.recalcTimer = 40 + Math.random() * 20;
+                    const newPoints = Pathfinding.findPath(zPos.x, zPos.y, hPos.x, hPos.y, world, 400);
+                    if (newPoints) {
+                        path.points = newPoints;
+                    } else {
+                        path.points = [];
+                        if (zVel) { zVel.vx = 0; zVel.vy = 0; }
+                    }
+                } else {
+                    path.recalcTimer--;
+                }
             }
 
             // Attack
@@ -58,6 +69,9 @@ export function zombieBehaviorSystem(entities, world) {
                     hHp.current -= ZOMBIE_ATTACK_DAMAGE;
                 }
             }
+        } else {
+            const path = entities.paths.get(zId);
+            if (path) { path.points = []; path.targetId = null; }
         }
     }
 }
@@ -65,7 +79,7 @@ export function zombieBehaviorSystem(entities, world) {
 // ─── Human Zombie Response System ───────────────────────
 export function humanZombieResponseSystem(entities, world) {
     for (const [hId, f] of entities.factions) {
-        if (f.name !== 'human') continue;
+        if (f.type !== 'human') continue;
 
         const hPos = entities.positions.get(hId);
         const hVel = entities.velocities.get(hId);
@@ -96,13 +110,26 @@ export function humanZombieResponseSystem(entities, world) {
             const dy = zPos.y - hPos.y;
             const dist = Math.sqrt(minDistSq);
 
-            const isAggressive = personality.aggressiveness > 3;
+            const isAggressive = personality.value <= 2; // 1=Warmongering, 2=Irritable
 
             if (isAggressive) {
                 // FIGHT — Move towards
-                if (dist > 0.5) {
-                    hVel.vx = (dx / dist) * HUMAN_SPEED;
-                    hVel.vy = (dy / dist) * HUMAN_SPEED;
+                const path = entities.paths.get(hId);
+                if (path) {
+                    const needsRecalc = path.targetId !== nearestZombieId || path.recalcTimer <= 0 || (path.points.length === 0 && dist > 1);
+                    if (needsRecalc) {
+                        path.targetId = nearestZombieId;
+                        path.recalcTimer = 40 + Math.random() * 20;
+                        const newPoints = Pathfinding.findPath(hPos.x, hPos.y, zPos.x, zPos.y, world, 400);
+                        if (newPoints) {
+                            path.points = newPoints;
+                        } else {
+                            path.points = [];
+                            if (hVel) { hVel.vx = 0; hVel.vy = 0; }
+                        }
+                    } else {
+                        path.recalcTimer--;
+                    }
                 }
                 // Attack
                 if (dist < 1.0) {
@@ -123,7 +150,7 @@ export function humanZombieResponseSystem(entities, world) {
 }
 
 // ─── Boat Behavior System ───────────────────────────────
-export function boatBehaviorSystem(entities, kingdomManager) {
+export function boatBehaviorSystem(entities, world, kingdomManager) {
     const { positions, velocities, boats, healths, membership } = entities;
 
     const CHASE_SPEED = 0.25;
@@ -165,14 +192,25 @@ export function boatBehaviorSystem(entities, kingdomManager) {
 
         if (nearestEnemyId) {
             const ePos = positions.get(nearestEnemyId);
-            const dx = ePos.x - pos.x;
-            const dy = ePos.y - pos.y;
+            const path = entities.paths.get(id);
             const dist = Math.sqrt(minDistSq);
 
-            // Move towards
-            if (dist > 1.5) {
-                vel.vx = (dx / dist) * CHASE_SPEED;
-                vel.vy = (dy / dist) * CHASE_SPEED;
+            if (path) {
+                const needsRecalc = path.targetId !== nearestEnemyId || path.recalcTimer <= 0 || (path.points.length === 0 && dist > 2);
+                if (needsRecalc) {
+                    path.targetId = nearestEnemyId;
+                    path.recalcTimer = 50 + Math.random() * 30;
+                    const newPoints = Pathfinding.findPath(pos.x, pos.y, ePos.x, ePos.y, world, 600, true);
+                    // Note: Ideally we pass the actual world object. If not available on entities, we need to pass it.
+                    if (newPoints) {
+                        path.points = newPoints;
+                    } else {
+                        path.points = [];
+                        if (vel) { vel.vx = 0; vel.vy = 0; }
+                    }
+                } else {
+                    path.recalcTimer--;
+                }
             }
 
             // Attack
@@ -183,6 +221,9 @@ export function boatBehaviorSystem(entities, kingdomManager) {
                     eHp.current -= 2.0;
                 }
             }
+        } else {
+            const path = entities.paths.get(id);
+            if (path) { path.points = []; path.targetId = null; }
         }
     }
 }

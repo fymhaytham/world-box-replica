@@ -15,3 +15,4 @@ export { Personality } from './Personality.js';
 export { Cloud } from './Cloud.js';
 export { Nuke } from './Nuke.js';
 export { Boat } from './Boat.js';
+export { Path } from './Path.js';

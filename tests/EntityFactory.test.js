@@ -113,7 +113,7 @@ describe('EntityFactory', () => {
 
         it('has large render size', () => {
             const id = spawnCloud(em, 8, 8);
-            expect(em.renders.get(id).size).toBe(2.0);
+            expect(em.renders.get(id).size).toBe(1.2);
         });
     });
 

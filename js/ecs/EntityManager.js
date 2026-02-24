@@ -22,6 +22,7 @@ export class EntityManager {
         this.nukes = new Map();
         this.boats = new Map();
         this.passengerOf = new Map(); // entityId -> boatId
+        this.paths = new Map();
     }
 
     _create() {
@@ -43,6 +44,7 @@ export class EntityManager {
         this.nukes.delete(id);
         this.boats.delete(id);
         this.passengerOf.delete(id);
+        this.paths.delete(id);
     }
 
     clear() {
@@ -60,6 +62,7 @@ export class EntityManager {
         this.nukes.clear();
         this.boats.clear();
         this.passengerOf.clear();
+        this.paths.clear();
         this._nextId = 1;
     }
 }

@@ -16,6 +16,7 @@ export function spawnHuman(entities, x, y) {
     entities.wanders.set(id, C.Wander(40));
     entities.factions.set(id, C.Faction('human'));
     entities.personalities.set(id, C.Personality());
+    entities.paths.set(id, C.Path());
     return id;
 }
 
@@ -27,6 +28,7 @@ export function spawnZombie(entities, x, y) {
     entities.renders.set(id, C.Render('🧟', 0.8));
     entities.wanders.set(id, { timer: 0, interval: 80, dirX: 0, dirY: 0 });
     entities.zombies.set(id, true);
+    entities.paths.set(id, C.Path());
     return id;
 }
 
@@ -75,6 +77,7 @@ export function spawnBoat(entities, x, y, size, type, kingdomId) {
     entities.boats.set(id, C.Boat(size, type, kingdomId));
     entities.wanders.set(id, C.Wander(60)); // Boats wander more slowly
     entities.factions.set(id, C.Faction('boat'));
+    entities.paths.set(id, C.Path());
 
     return id;
 }

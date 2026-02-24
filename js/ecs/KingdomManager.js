@@ -1,5 +1,6 @@
 import { spawnHuman, spawnNuke, spawnBoat } from './EntityFactory.js';
 import { TILE } from '../constants.js';
+import { Pathfinding } from '../utils/Pathfinding.js';
 
 /**
  * KingdomManager — handles formation of kingdoms, territory claims,
@@ -218,6 +219,7 @@ export class KingdomManager {
 
                 // Dissolve empty kingdoms — check for conquest
                 if (oldK.members.size === 0) {
+                    console.log(`Deleting kingdom ${oldK.name} (id ${oldKid}) because it is empty.`);
                     // Find the attacker's kingdom for conquest
                     const attackerKid = this._lastAttackerKingdom.get(entityId);
                     const attackerK = attackerKid != null ? this.kingdoms.get(attackerKid) : null;
@@ -342,6 +344,7 @@ export class KingdomManager {
             this._distributionSystem(entities);
             this._progressionSystem();
             this._nuclearWarfareSystem(entities, world);
+            this._rebellionSystem(entities);
             this._navySystem(entities, world);
             this._resourceTimer = 0;
         }
@@ -530,7 +533,7 @@ export class KingdomManager {
         for (let i = 0; i < units.length; i++) {
             const a = units[i];
             let closestEnemy = null;
-            let closestDist = TARGET_RANGE;
+            let closestDistSq = TARGET_RANGE * TARGET_RANGE;
 
             const kA = this.kingdoms.get(a.kid);
             // Apply kingdom tech bonuses to damage if available
@@ -541,28 +544,50 @@ export class KingdomManager {
                 const b = units[j];
                 if (!this.areAtWar(a.kid, b.kid)) continue;
 
-                const dist = Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y);
-                if (dist < closestDist) {
-                    closestDist = dist;
+                const dx = a.pos.x - b.pos.x;
+                const dy = a.pos.y - b.pos.y;
+                const dSq = dx * dx + dy * dy;
+                if (dSq < closestDistSq) {
+                    closestDistSq = dSq;
                     closestEnemy = b;
                 }
             }
 
             if (closestEnemy) {
                 targeting.add(a.id);
+                const path = entities.paths.get(a.id);
+                const dist = Math.sqrt(closestDistSq);
 
-                // Move towards closest enemy
-                const vel = entities.velocities.get(a.id);
-                if (vel) {
-                    const dx = closestEnemy.pos.x - a.pos.x;
-                    const dy = closestEnemy.pos.y - a.pos.y;
-                    const len = Math.hypot(dx, dy) || 1;
-                    vel.vx = (dx / len) * CHASE_SPEED;
-                    vel.vy = (dy / len) * CHASE_SPEED;
+                if (path) {
+                    // Recalculate path if target changed or timer expired
+                    const needsRecalc = path.targetId !== closestEnemy.id ||
+                        path.recalcTimer <= 0 ||
+                        (path.points.length === 0 && dist > 1.5);
+
+                    if (needsRecalc) {
+                        path.targetId = closestEnemy.id;
+                        path.targetX = closestEnemy.pos.x;
+                        path.targetY = closestEnemy.pos.y;
+                        path.recalcTimer = 30 + Math.random() * 20; // Recalc every ~1.5-2.5 seconds
+
+                        const isBoat = entities.boats.has(a.id);
+                        const newPoints = Pathfinding.findPath(a.pos.x, a.pos.y, closestEnemy.pos.x, closestEnemy.pos.y, world, 500, isBoat);
+
+                        if (newPoints) {
+                            path.points = newPoints;
+                        } else {
+                            // No route found! Stop and maybe wander or wait
+                            path.points = [];
+                            const vel = entities.velocities.get(a.id);
+                            if (vel) { vel.vx = 0; vel.vy = 0; }
+                        }
+                    } else {
+                        path.recalcTimer--;
+                    }
                 }
 
                 // Deal damage if in attack range (only on combat ticks)
-                if (this._combatTimer >= 5 && closestDist < ATTACK_RANGE) {
+                if (this._combatTimer >= 5 && dist < ATTACK_RANGE) {
                     const hpEnemy = entities.healths.get(closestEnemy.id);
                     if (hpEnemy) {
                         const kB = this.kingdoms.get(closestEnemy.kid);
@@ -572,6 +597,13 @@ export class KingdomManager {
                         hpEnemy.current -= finalDamage * (0.5 + Math.random() * 0.5);
                         this._lastAttackerKingdom.set(closestEnemy.id, a.kid);
                     }
+                }
+            } else {
+                // No enemy? Clear path
+                const path = entities.paths.get(a.id);
+                if (path) {
+                    path.points = [];
+                    path.targetId = null;
                 }
             }
         }
@@ -633,10 +665,13 @@ export class KingdomManager {
 
     // ─── Resource Gathering System ────────────────────────
     // Members gather resources based on the tile they are standing on.
+    // If they aren't on a good tile, they seek one out.
     _resourceGatheringSystem(entities, world) {
         for (const [kid, k] of this.kingdoms) {
             // Passive Science (base + per member)
             k.resources.science += 0.5 + (k.members.size * 0.1);
+
+            const canMine = k.modifiers.miningRate > 0;
 
             for (const memberId of k.members) {
                 const pos = entities.positions.get(memberId);
@@ -646,27 +681,73 @@ export class KingdomManager {
                 const ty = Math.floor(pos.y);
                 const tile = world.get(tx, ty);
 
-                // Resource Logic
+                // 1. Gathering Logic (as before)
+                let onUsefulTile = false;
                 if (tile === TILE.FOREST) {
                     k.resources.wood += 1;
-                    k.resources.food += 0.2 * k.modifiers.farmingRate; // Berries/Hunting
-                }
-                else if (tile === TILE.GRASS) {
-                    // Farming
+                    k.resources.food += 0.2 * k.modifiers.farmingRate;
+                    onUsefulTile = true;
+                } else if (tile === TILE.GRASS) {
                     k.resources.food += 0.5 * k.modifiers.farmingRate;
+                    onUsefulTile = true;
+                } else if (tile === TILE.STONE && canMine) {
+                    k.resources.stone += 1 * k.modifiers.miningRate;
+                    onUsefulTile = true;
                 }
-                else if (tile === TILE.STONE) {
-                    if (k.modifiers.miningRate > 0) {
-                        k.resources.stone += 1 * k.modifiers.miningRate;
+
+                // 2. Seeking Logic
+                // Only seek if not actively targeted in war (handled by _combatSystem)
+                if (this._warTargeting && this._warTargeting.has(memberId)) continue;
+                if (entities.passengerOf.has(memberId)) continue;
+
+                const path = entities.paths.get(memberId);
+                if (!path) continue;
+
+                // If not on useful tile, seek one
+                if (!onUsefulTile && (path.points.length === 0 || path.recalcTimer <= 0)) {
+                    // Find nearest useful tile in a 15-tile radius
+                    let bestX = null, bestY = null;
+                    let bestDistSq = 15 * 15;
+
+                    for (let dy = -15; dy <= 15; dy += 2) { // Step 2 for performance
+                        for (let dx = -15; dx <= 15; dx += 2) {
+                            const nx = tx + dx;
+                            const ny = ty + dy;
+                            if (!world.inBounds(nx, ny)) continue;
+
+                            const nTile = world.get(nx, ny);
+                            const isUseful = nTile === TILE.FOREST || nTile === TILE.GRASS || (nTile === TILE.STONE && canMine);
+
+                            if (isUseful) {
+                                const dSq = dx * dx + dy * dy;
+                                if (dSq < bestDistSq) {
+                                    bestDistSq = dSq;
+                                    bestX = nx;
+                                    bestY = ny;
+                                }
+                            }
+                        }
                     }
-                }
-                else if (tile === TILE.WATER || tile === TILE.WATER_DEEP) {
-                    // Fishing (if near water - simplified to ON water, though humans can't walk on water usually)
-                    // If humans stand on Sand next to water?
-                }
-                else if (tile === TILE.SAND) {
-                    // Maybe minimal food?
-                    k.resources.food += 0.1;
+
+                    if (bestX !== null) {
+                        path.targetX = bestX;
+                        path.targetY = bestY;
+                        path.recalcTimer = 100 + Math.random() * 100; // Recalc less often for resources
+                        const newPoints = Pathfinding.findPath(pos.x, pos.y, bestX, bestY, world, 300);
+                        if (newPoints) {
+                            path.points = newPoints;
+                        } else {
+                            path.points = [];
+                            // Reached unreachable tile? Stop.
+                            const vel = entities.velocities.get(memberId);
+                            if (vel) { vel.vx = 0; vel.vy = 0; }
+                        }
+                    } else {
+                        // No useful tiles found, just wander (reset path)
+                        path.points = [];
+                    }
+                } else {
+                    path.recalcTimer--;
                 }
             }
         }
@@ -749,6 +830,98 @@ export class KingdomManager {
                     );
                 }
             }
+        }
+    }
+
+    // ─── Rebellion System ─────────────────────────────────
+    _rebellionSystem(entities) {
+        for (const [kid, k] of this.kingdoms) {
+            if (k.members.size < 5) continue; // Need at least some population to rebel
+
+            const kingPers = entities.personalities.get(k.leaderId);
+            if (!kingPers) continue;
+            const pValK = kingPers.value;
+
+            // Define "aggressive" (1-2) and "peaceful" (4-5) groups
+            const isKingAggressive = pValK <= 2;
+            const isKingPeaceful = pValK >= 4;
+
+            if (!isKingAggressive && !isKingPeaceful) continue;
+
+            let aggressiveCount = 0;
+            let peacefulCount = 0;
+            const rebels = [];
+
+            for (const memberId of k.members) {
+                if (memberId === k.leaderId) continue;
+                const p = entities.personalities.get(memberId);
+                if (!p) continue;
+
+                if (p.value <= 2) {
+                    aggressiveCount++;
+                    if (isKingPeaceful) rebels.push(memberId);
+                } else if (p.value >= 4) {
+                    peacefulCount++;
+                    if (isKingAggressive) rebels.push(memberId);
+                }
+            }
+
+            const totalCount = k.members.size;
+            let triggerRebellion = false;
+            let rebellionReason = "";
+
+            if (isKingPeaceful && (aggressiveCount / totalCount) > 0.5) {
+                triggerRebellion = true;
+                rebellionReason = "The citizens want war, but the king is too peaceful!";
+            } else if (isKingAggressive && (peacefulCount / totalCount) > 0.5) {
+                triggerRebellion = true;
+                rebellionReason = "The citizens want peace, but the king is too aggressive!";
+            }
+
+            if (triggerRebellion && rebels.length > 0) {
+                this._executeRebellion(k, rebels, entities, rebellionReason);
+            }
+        }
+    }
+
+    _executeRebellion(oldK, rebels, entities, reason) {
+        // Find a starting position for the new kingdom (mean of rebels' positions)
+        let avgX = 0, avgY = 0;
+        let count = 0;
+        for (const rId of rebels) {
+            const pos = entities.positions.get(rId);
+            if (pos) {
+                avgX += pos.x;
+                avgY += pos.y;
+                count++;
+            }
+        }
+        if (count === 0) return;
+        avgX /= count;
+        avgY /= count;
+
+        const newName = this._generateName();
+        // The first rebel becomes the new leader
+        const leaderId = rebels[0];
+
+        // IMPORTANT: Must leave old kingdom before creating new one to avoid membership conflicts
+        for (const rId of rebels) {
+            this.leaveKingdom(rId);
+        }
+
+        const newK = this.createKingdom(newName, leaderId, { x: avgX, y: avgY });
+
+        // Move the rest of the rebels to the new kingdom
+        for (let i = 1; i < rebels.length; i++) {
+            this.joinKingdom(rebels[i], newK.id);
+        }
+
+        this.notifications?.show(`REBELLION in ${oldK.name}! ${reason}`, 'warning');
+        this.notifications?.show(`${newName} has split off from ${oldK.name}.`, 'info');
+
+        // Rebellions often lead to war
+        if (oldK.leaderId && Math.random() < 0.7) {
+            this.declareWar(oldK.id, newK.id);
         }
     }
 
