@@ -90,7 +90,7 @@ function logicTick() {
     const warTargeting = kingdoms.update(entities, world, logicTicks);
 
     // All ECS systems via SystemManager
-    runAllSystems(entities, world, warTargeting);
+    runAllSystems(entities, world, warTargeting, kingdoms);
 
     // Remove dead entities (clean up kingdom membership too)
     for (const [id, hp] of entities.healths) {
